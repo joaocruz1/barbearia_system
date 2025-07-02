@@ -1,11 +1,18 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 
-// GET /api/appointments/[id] - Buscar agendamento por ID
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+type RouteContext = { 
+  params: Promise<{id : string}>
+}
+
+
+export async function GET(request: NextRequest, context : RouteContext): Promise<NextResponse> {
+  const routeParams = await context.params;
+  const  id  = routeParams.id
+
   try {
     const appointment = await prisma.appointment.findUnique({
-      where: { id: params.id },
+      where: { id: id },
       include: {
         client: {
           include: {
@@ -31,13 +38,15 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 }
 
 // PUT /api/appointments/[id] - Atualizar agendamento
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(request: NextRequest, context : RouteContext): Promise<NextResponse>{
+  const routeParams = await context.params;
+  const  id  = routeParams.id
   try {
     const body = await request.json()
     const { appointmentDate, startTime, endTime, status, paymentMethod, paymentStatus, notes } = body
 
     const appointment = await prisma.appointment.update({
-      where: { id: params.id },
+      where: {id : id},
       data: {
         appointmentDate: appointmentDate ? new Date(appointmentDate) : undefined,
         startTime,
@@ -67,10 +76,13 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 }
 
 // DELETE /api/appointments/[id] - Cancelar agendamento
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, context : RouteContext) : Promise<NextResponse> {
+  const routeParams = await context.params;
+  const  id  = routeParams.id 
+
   try {
     const appointment = await prisma.appointment.update({
-      where: { id: params.id },
+      where: { id: id },
       data: {
         status: "cancelled",
         paymentStatus: "cancelled",

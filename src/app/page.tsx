@@ -12,20 +12,20 @@ import { Scissors, User, Lock, MapPin } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 const locations = [
-  { id: "rua13", name: "Rua 13" },
-  { id: "avenida", name: "Avenida" },
-  { id: "inconfidentes", name: "Inconfidentes" },
-  { id: "ouro-fino", name: "Ouro Fino" },
+  { id: "21baaab5-2188-4619-b075-afe7bc006ed2", name: "Rua 13" },
+  { id: "ec5dc912-3b79-4d38-b342-2dd2a257704d", name: "Avenida" },
+  { id: "a5a5bab9-a997-4013-9bee-5cfc8e8c04fb", name: "Inconfidentes" },
+  { id: "9c5650bc-56cd-4238-a736-7845e62276b5", name: "Ouro Fino" },
 ]
 
 const barbers = [
-  { id: "bruno", name: "Bruno Souza" },
-  { id: "erick", name: "Erick" },
-  { id: "ryan", name: "Ryan" },
-  { id: "carlos", name: "Carlos" },
-  { id: "julio", name: "Julio" },
-  { id: "faguinho", name: "Faguinho" },
-  { id: "joilton", name: "Joilton" },
+  { id: "16dae2fe-cb58-4dd4-a454-fdb352500538", name: "Bruno Souza" },
+  { id: "a7ad7f98-8107-49ea-b44c-317a6569c593", name: "Erick" },
+  { id: "c1f4c1d4-de40-417b-9e22-49d7db1fa2b3", name: "Ryan" },
+  { id: "a027418f-072e-4bfb-b83a-3873e14baeb8", name: "Carlos" },
+  { id: "9036779c-1967-4b46-83ae-49692a51d286", name: "Julio" },
+  { id: "231bd7d5-e407-4250-81f1-98bea95c372b", name: "Faguinho" },
+  { id: "e5a5ef77-7c77-445b-b412-88a4ae1237e2", name: "Joilton" },
 ]
 
 export default function LoginPage() {

@@ -1,11 +1,18 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
+import { Route } from "next"
+
+type RouteContext = { 
+  params: Promise<{id : string}>
+}
 
 // GET /api/clients/[id] - Buscar cliente por ID
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, context : RouteContext): Promise<NextResponse> {
+  const routeParams = await context.params;
+  const  id  = routeParams.id
   try {
     const client = await prisma.client.findUnique({
-      where: { id: params.id },
+      where: { id: id },
       include: {
         plan: true,
         appointments: {
@@ -38,13 +45,16 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 }
 
 // PUT /api/clients/[id] - Atualizar cliente
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(request: NextRequest, context : RouteContext): Promise<NextResponse> {
+  const routeParams = await context.params;
+  const  id  = routeParams.id
+
   try {
     const body = await request.json()
     const { name, phone, email, planId, planStartDate, planEndDate, isActive } = body
 
     const client = await prisma.client.update({
-      where: { id: params.id },
+      where: { id: id },
       data: {
         name,
         phone,
@@ -67,10 +77,12 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 }
 
 // DELETE /api/clients/[id] - Deletar cliente
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, context : RouteContext): Promise<NextResponse> {
+  const routeParams = await context.params;
+  const  id  = routeParams.id 
   try {
     await prisma.client.update({
-      where: { id: params.id },
+      where: { id: id },
       data: { isActive: false },
     })
 

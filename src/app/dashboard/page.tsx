@@ -9,14 +9,15 @@ import { Separator } from "@/components/ui/separator"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Calendar, Clock, DollarSign, TrendingUp, MapPin, Scissors, Star, Plus } from "lucide-react"
+import { Calendar, Clock, DollarSign, TrendingUp, MapPin, Scissors, Star, Plus, Filter } from "lucide-react"
 import { useApi } from "@/hooks/use-api"
-import { dashboardApi, plansApi, type DashboardStats, type Plan } from "@/lib/api"
-import { toast } from "sonner" // 👈 NOVO: Importe o toast aqui
+import { dashboardApi, plansApi, locationsApi, type DashboardStats, type Plan, type Location } from "@/lib/api"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { toast } from "sonner" // 🎯 Importando toast do sonner
 
 export default function DashboardPage() {
   const [barberId, setBarberId] = useState<string | null>(null)
-  const [location, setLocation] = useState<string | null>(null)
+  const [selectedLocationFilter, setSelectedLocationFilter] = useState<string>("all")
   const router = useRouter()
 
   useEffect(() => {
@@ -24,9 +25,12 @@ export default function DashboardPage() {
     const storedLocation = localStorage.getItem("barberLocation")
     if (!storedBarberId || !storedLocation) {
       router.push("/")
+      // Optionally, you might want to show a toast here if redirection happens due to missing info
+      toast.info("Atenção", {
+        description: "Você precisa estar logado e ter uma localidade definida para acessar o painel.",
+      });
     } else {
       setBarberId(storedBarberId)
-      setLocation(storedLocation)
     }
   }, [router])
 
@@ -40,29 +44,18 @@ export default function DashboardPage() {
     () =>
       dashboardApi.getStats({
         barberId: barberId || undefined,
-        locationId: location || undefined,
         date: new Date().toISOString().split("T")[0],
       }),
-    [barberId, location],
+    [barberId],
   )
 
   // Fetch plans
   const { data: plans, loading: plansLoading } = useApi<Plan[]>(() => plansApi.getAll(), [])
 
-  // 👇 NOVO: Efeito para exibir toast de erro
-  useEffect(() => {
-    if (statsError) {
-      toast.error("Erro ao carregar dados", {
-        description: "Não foi possível buscar as estatísticas do dashboard. Tente novamente.",
-        action: {
-          label: "Tentar Novamente",
-          onClick: () => refetchStats(),
-        },
-      })
-    }
-  }, [statsError, refetchStats])
+  // Fetch locations for filter
+  const { data: locations } = useApi<Location[]>(() => locationsApi.getAll(), [])
 
-  if (!barberId || !location) {
+  if (!barberId) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
@@ -73,13 +66,17 @@ export default function DashboardPage() {
     )
   }
 
-  // A tela de erro principal pode ser mantida como um fallback
-  if (statsError && !dashboardStats) {
+  if (statsError) {
+    // 🎯 Usando toast.error do sonner aqui para exibir o erro
+    toast.error("Erro ao carregar dados", {
+      description: `Falha ao buscar as estatísticas do painel. Detalhes: ${statsError || "Erro desconhecido."}`,
+      duration: 5000,
+    });
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <p className="text-red-600 mb-4">Ocorreu um erro ao carregar as informações.</p>
-          <Button onClick={() => refetchStats()} className="bg-black hover:bg-gray-800 text-white">
+          <p className="text-red-600 mb-4">Erro ao carregar dados.</p>
+          <Button onClick={refetchStats} className="bg-black hover:bg-gray-800 text-white">
             Tentar Novamente
           </Button>
         </div>
@@ -100,15 +97,12 @@ export default function DashboardPage() {
     return names[id] || id
   }
 
-  const getLocationName = (id: string) => {
-    const names: { [key: string]: string } = {
-      rua13: "Rua 13",
-      avenida: "Avenida",
-      inconfidentes: "Inconfidentes",
-      "ouro-fino": "Ouro Fino",
-    }
-    return names[id] || id
-  }
+  // Filtrar agendamentos por localidade se selecionado
+  const filteredAppointments =
+    dashboardStats?.appointments.filter((appointment) => {
+      if (selectedLocationFilter === "all") return true
+      return appointment.location.id === selectedLocationFilter
+    }) || []
 
   return (
     <SidebarProvider>
@@ -118,10 +112,10 @@ export default function DashboardPage() {
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-2 h-4" />
           <div className="flex items-center gap-2">
-            <MapPin className="h-4 w-4 text-black" />
-            <span className="font-medium text-black">{getLocationName(location)}</span>
-            <Separator orientation="vertical" className="h-4" />
             <span className="text-lg font-semibold text-black">Olá, {getBarberName(barberId)}!</span>
+            <Badge variant="outline" className="border-gray-300 text-gray-700">
+              Todas as Localidades
+            </Badge>
           </div>
         </header>
 
@@ -137,7 +131,7 @@ export default function DashboardPage() {
                 <div className="text-3xl font-bold text-black">
                   {statsLoading ? "..." : dashboardStats?.today.appointments || 0}
                 </div>
-                <p className="text-xs text-gray-500">Agendamentos confirmados</p>
+                <p className="text-xs text-gray-500">Em todas as localidades</p>
               </CardContent>
             </Card>
 
@@ -169,14 +163,14 @@ export default function DashboardPage() {
 
             <Card className="border border-gray-200 shadow-lg bg-white">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-gray-600">Taxa Ocupação</CardTitle>
+                <CardTitle className="text-sm font-medium text-gray-600">Localidades Ativas</CardTitle>
                 <TrendingUp className="h-4 w-4 text-black" />
               </CardHeader>
               <CardContent>
                 <div className="text-3xl font-bold text-black">
-                  {statsLoading ? "..." : `${dashboardStats?.today.occupancyRate || 0}%`}
+                  {statsLoading ? "..." : new Set(dashboardStats?.appointments.map((a) => a.location.name)).size || 0}
                 </div>
-                <p className="text-xs text-gray-500">Horários ocupados</p>
+                <p className="text-xs text-gray-500">Com agendamentos hoje</p>
               </CardContent>
             </Card>
           </div>
@@ -188,16 +182,34 @@ export default function DashboardPage() {
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div>
-                      <CardTitle className="text-xl text-black">Agendamentos de Hoje</CardTitle>
-                      <CardDescription className="text-gray-600">Seus próximos atendimentos</CardDescription>
+                      <CardTitle className="text-xl text-black">Seus Agendamentos de Hoje</CardTitle>
+                      <CardDescription className="text-gray-600">
+                        Todos os seus atendimentos em todas as localidades
+                      </CardDescription>
                     </div>
-                    <Button
-                      className="bg-black hover:bg-gray-800 text-white"
-                      onClick={() => router.push("/appointments")}
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Novo Agendamento
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Select value={selectedLocationFilter} onValueChange={setSelectedLocationFilter}>
+                        <SelectTrigger className="w-40 border-gray-300 focus:border-black">
+                          <Filter className="h-4 w-4 mr-2" />
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Todas</SelectItem>
+                          {locations?.map((location) => (
+                            <SelectItem key={location.id} value={location.id}>
+                              {location.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        className="bg-black hover:bg-gray-800 text-white"
+                        onClick={() => router.push("/appointments")}
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Novo
+                      </Button>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -215,34 +227,48 @@ export default function DashboardPage() {
                         </div>
                       ))}
                     </div>
-                  ) : dashboardStats?.appointments.length === 0 ? (
+                  ) : filteredAppointments.length === 0 ? (
                     <div className="text-center py-8 text-gray-500">
                       <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
                       <p>Nenhum agendamento para hoje</p>
+                      {selectedLocationFilter !== "all" && (
+                        <p className="text-sm mt-2">Tente remover o filtro de localidade</p>
+                      )}
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      {dashboardStats?.appointments.map((appointment) => (
+                      {filteredAppointments.map((appointment) => (
                         <div
                           key={appointment.id}
-                          className="flex items-center justify-between p-4 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
+                          className="flex items-center justify-between p-6 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
                         >
                           <div className="flex items-center space-x-4">
-                            <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
-                              <Scissors className="h-5 w-5 text-black" />
+                            <div className="w-14 h-14 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center">
+                              <Scissors className="h-6 w-6 text-black" />
                             </div>
                             <div>
-                              <p className="font-semibold text-black">{appointment.client.name}</p>
-                              <p className="text-sm text-gray-600">{appointment.service.name}</p>
-                              <div className="flex items-center space-x-2 mt-1">
-                                <Clock className="h-3 w-3 text-gray-400" />
-                                <span className="text-xs text-gray-500">
-                                  {appointment.startTime} ({appointment.service.durationMinutes}min)
-                                </span>
+                              <div className="flex items-center gap-2 mb-1">
+                                <p className="font-semibold text-black text-lg">{appointment.client.name}</p>
+                                {appointment.client.plan && appointment.client.plan.name !== "Avulso" && (
+                                  <Star className="h-4 w-4 text-yellow-500" />
+                                )}
+                              </div>
+                              <p className="text-sm text-gray-600 mb-2">{appointment.service.name}</p>
+                              <div className="flex items-center space-x-4 text-xs text-gray-500">
+                                <div className="flex items-center space-x-1">
+                                  <Clock className="h-3 w-3" />
+                                  <span className="font-medium">
+                                    {appointment.startTime} ({appointment.service.durationMinutes}min)
+                                  </span>
+                                </div>
+                                <div className="flex items-center space-x-1">
+                                  <MapPin className="h-3 w-3" />
+                                  <span className="font-medium">{appointment.location.name}</span>
+                                </div>
                               </div>
                             </div>
                           </div>
-                          <div className="flex items-center space-x-2">
+                          <div className="flex flex-col items-end space-y-2">
                             <Badge
                               variant={appointment.client.plan?.name === "Avulso" ? "outline" : "default"}
                               className={
@@ -254,14 +280,20 @@ export default function DashboardPage() {
                               {appointment.client.plan?.name || "Avulso"}
                             </Badge>
                             <Badge
-                              variant={appointment.status === "confirmed" ? "default" : "secondary"}
+                              variant={
+                                appointment.status === "confirmed" || appointment.status === "scheduled"
+                                  ? "default"
+                                  : "secondary"
+                              }
                               className={
-                                appointment.status === "confirmed"
-                                  ? "bg-gray-800 text-white"
+                                appointment.status === "confirmed" || appointment.status === "scheduled"
+                                  ? "bg-green-600 text-white"
                                   : "bg-gray-200 text-gray-700"
                               }
                             >
-                              {appointment.status === "confirmed" ? "Confirmado" : "Aguardando"}
+                              {appointment.status === "confirmed" || appointment.status === "scheduled"
+                                ? "Confirmado"
+                                : "Aguardando"}
                             </Badge>
                           </div>
                         </div>

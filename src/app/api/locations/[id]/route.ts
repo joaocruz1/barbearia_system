@@ -1,11 +1,18 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 
+type RouteContext = { 
+  params: Promise<{id : string}>
+}
+
 // GET /api/locations/[id] - Buscar localidade por ID
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, context : RouteContext): Promise<NextResponse> {
+  const routeParams = await context.params;
+  const  id  = routeParams.id
+
   try {
     const location = await prisma.location.findUnique({
-      where: { id: params.id },
+      where: { id: id },
       include: {
         barberSchedules: {
           include: {
@@ -34,13 +41,15 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 }
 
 // PUT /api/locations/[id] - Atualizar localidade
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(request: NextRequest, context : RouteContext): Promise<NextResponse> {
+  const routeParams = await context.params;
+  const  id  = routeParams.id
   try {
     const body = await request.json()
     const { name, address } = body
 
     const location = await prisma.location.update({
-      where: { id: params.id },
+      where: { id: id },
       data: {
         name,
         address,
@@ -55,10 +64,12 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 }
 
 // DELETE /api/locations/[id] - Deletar localidade
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, context : RouteContext): Promise<NextResponse> {
+  const routeParams = await context.params;
+  const  id  = routeParams.id 
   try {
     await prisma.location.delete({
-      where: { id: params.id },
+      where: { id: id },
     })
 
     return NextResponse.json({ message: "Location deleted successfully" })
