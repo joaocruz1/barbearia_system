@@ -35,7 +35,7 @@ import {
   type Location,
   type CreateAppointmentData,
 } from "@/lib/api"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "sonner"
 
 export default function AppointmentsPage() {
   const [searchTerm, setSearchTerm] = useState("")
@@ -43,7 +43,7 @@ export default function AppointmentsPage() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0])
   const [location, setLocation] = useState<string | null>(null)
   const [barberId, setBarberId] = useState<string | null>(null)
-  const { toast } = useToast()
+  
 
   const [newAppointment, setNewAppointment] = useState({
     clientId: "",
@@ -100,11 +100,9 @@ export default function AppointmentsPage() {
 
   const handleCreateAppointment = async () => {
     if (!newAppointment.clientId || !newAppointment.serviceId || !newAppointment.time || !barberId) {
-      toast({
-        title: "Erro",
+      toast.error("Erro", {
         description: "Preencha todos os campos obrigatórios",
-        variant: "destructive",
-      })
+      });
       return
     }
 
@@ -150,10 +148,9 @@ export default function AppointmentsPage() {
 
     try {
       await createAppointment(appointmentData)
-      toast({
-        title: "Sucesso",
-        description: "Agendamento criado com sucesso!",
-      })
+        toast.success("Sucesso", {
+          description: "Agendamento criado com sucesso!",
+        });
       setNewAppointment({
         clientId: "",
         serviceId: "",
@@ -165,11 +162,9 @@ export default function AppointmentsPage() {
       setIsDialogOpen(false)
       refetchAppointments()
     } catch (error) {
-      toast({
-        title: "Erro",
+      toast.error("Erro", {
         description: "Falha ao criar agendamento. Tente novamente.",
-        variant: "destructive",
-      })
+      });
     }
   }
 

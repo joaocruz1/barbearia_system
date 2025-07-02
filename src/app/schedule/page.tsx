@@ -9,65 +9,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Clock, MapPin, User, Calendar } from "lucide-react"
-
-// Dados dos barbeiros e seus horários por localidade
-const barberSchedules = {
-  bruno: {
-    name: "Bruno Souza",
-    schedules: [
-      { location: "Rua 13", days: [1, 2, 3, 4, 5], startTime: "09:00", endTime: "19:00" },
-      { location: "Rua 13", days: [6], startTime: "09:00", endTime: "15:00" },
-    ],
-  },
-  erick: {
-    name: "Erick",
-    schedules: [
-      { location: "Rua 13", days: [1, 2, 3, 4], startTime: "09:00", endTime: "19:00" },
-      { location: "Rua 13", days: [5], startTime: "08:00", endTime: "19:00" },
-      { location: "Rua 13", days: [6], startTime: "08:00", endTime: "15:00" },
-    ],
-  },
-  ryan: {
-    name: "Ryan",
-    schedules: [
-      { location: "Avenida", days: [1, 2, 3, 4], startTime: "09:00", endTime: "19:00" },
-      { location: "Inconfidentes", days: [5], startTime: "08:30", endTime: "19:00" },
-      { location: "Inconfidentes", days: [6], startTime: "07:30", endTime: "15:00" },
-    ],
-  },
-  carlos: {
-    name: "Carlos",
-    schedules: [
-      { location: "Inconfidentes", days: [1, 3, 5], startTime: "09:00", endTime: "19:00" },
-      { location: "Inconfidentes", days: [6], startTime: "09:00", endTime: "15:00" },
-      { location: "Rua 13", days: [2, 4], startTime: "09:00", endTime: "19:00" },
-    ],
-  },
-  julio: {
-    name: "Julio",
-    schedules: [
-      { location: "Inconfidentes", days: [1, 2, 3, 4], startTime: "09:00", endTime: "19:00" },
-      { location: "Rua 13", days: [5], startTime: "09:00", endTime: "19:00" },
-      { location: "Rua 13", days: [6], startTime: "09:00", endTime: "15:00" },
-    ],
-  },
-  faguinho: {
-    name: "Faguinho",
-    schedules: [
-      { location: "Inconfidentes", days: [2, 4], startTime: "09:00", endTime: "19:00" },
-      { location: "Rua 13", days: [3], startTime: "09:00", endTime: "19:00" },
-      { location: "Avenida", days: [5], startTime: "09:00", endTime: "19:00" },
-      { location: "Avenida", days: [6], startTime: "09:00", endTime: "15:00" },
-    ],
-  },
-  joilton: {
-    name: "Joilton",
-    schedules: [
-      { location: "Avenida", days: [1, 2, 3, 4, 5], startTime: "09:00", endTime: "19:00" },
-      { location: "Avenida", days: [6], startTime: "09:00", endTime: "15:00" },
-    ],
-  },
-}
+import { useApi } from "@/hooks/use-api"
+import {
+  barberSchedulesApi,
+  barbersApi,
+  locationsApi,
+  type BarberSchedule,
+  type Barber,
+  type Location,
+} from "@/lib/api"
+import { toast } from "sonner" // 👈 NOVO: Importar o toast
 
 const weekDays = [
   { value: 1, label: "Segunda", short: "SEG" },
@@ -79,39 +30,122 @@ const weekDays = [
   { value: 0, label: "Domingo", short: "DOM" },
 ]
 
-const locations = ["Rua 13", "Avenida", "Inconfidentes", "Ouro Fino"]
-
 export default function SchedulePage() {
   const [currentBarber, setCurrentBarber] = useState<string | null>(null)
-  const [selectedLocation, setSelectedLocation] = useState("all")
 
   useEffect(() => {
     const barberId = localStorage.getItem("barberId")
     setCurrentBarber(barberId)
   }, [])
 
-  const getLocationColor = (location: string) => {
+  // API calls
+  const {
+    data: schedules,
+    loading: schedulesLoading,
+    error: schedulesError,
+    refetch: refetchSchedules,
+  } = useApi<BarberSchedule[]>(() => barberSchedulesApi.getAll(), [])
+
+  const {
+    data: barbers,
+    loading: barbersLoading,
+    error: barbersError,
+    refetch: refetchBarbers,
+  } = useApi<Barber[]>(() => barbersApi.getAll(), [])
+
+  const {
+    data: locations,
+    loading: locationsLoading,
+    error: locationsError,
+    refetch: refetchLocations,
+  } = useApi<Location[]>(() => locationsApi.getAll(), [])
+
+  // 👇 NOVO: Efeito para exibir toasts de erro
+  useEffect(() => {
+    if (schedulesError) {
+      toast.error("Erro ao carregar horários", {
+        description: "Não foi possível buscar os dados da grade. Tente novamente.",
+        action: {
+          label: "Tentar Novamente",
+          onClick: () => refetchSchedules(),
+        },
+      })
+    }
+    if (barbersError) {
+      toast.error("Erro ao carregar barbeiros", {
+        description: "Não foi possível buscar os dados dos barbeiros. Tente novamente.",
+        action: {
+          label: "Tentar Novamente",
+          onClick: () => refetchBarbers(),
+        },
+      })
+    }
+    if (locationsError) {
+      toast.error("Erro ao carregar localidades", {
+        description: "Não foi possível buscar os dados das localidades. Tente novamente.",
+        action: {
+          label: "Tentar Novamente",
+          onClick: () => refetchLocations(),
+        },
+      })
+    }
+  }, [
+    schedulesError,
+    barbersError,
+    locationsError,
+    refetchSchedules,
+    refetchBarbers,
+    refetchLocations,
+  ])
+
+  const getLocationColor = (locationName: string) => {
     const colors: { [key: string]: string } = {
       "Rua 13": "bg-black",
       Avenida: "bg-gray-800",
       Inconfidentes: "bg-gray-600",
       "Ouro Fino": "bg-gray-400",
     }
-    return colors[location] || "bg-gray-500"
+    return colors[locationName] || "bg-gray-500"
   }
 
-  const getBarbersByLocation = (location: string) => {
-    return Object.entries(barberSchedules).filter(([_, barber]) =>
-      barber.schedules.some((schedule) => schedule.location === location),
+  const getBarbersByLocation = (locationName: string) => {
+    if (!schedules || !barbers) return []
+
+    const locationSchedules = schedules.filter((schedule) => schedule.location.name === locationName)
+    const barberIds = [...new Set(locationSchedules.map((schedule) => schedule.barberId))]
+
+    return barbers.filter((barber) => barberIds.includes(barber.id))
+  }
+
+  const getScheduleForDay = (barberId: string, day: number, locationName?: string) => {
+    if (!schedules) return null
+
+    return schedules.find(
+      (schedule) =>
+        schedule.barberId === barberId &&
+        schedule.weekDay === day &&
+        (!locationName || schedule.location.name === locationName),
     )
   }
 
-  const getScheduleForDay = (barberId: string, day: number, location?: string) => {
-    const barber = barberSchedules[barberId as keyof typeof barberSchedules]
-    if (!barber) return null
-
-    return barber.schedules.find(
-      (schedule) => schedule.days.includes(day) && (!location || schedule.location === location),
+  if (schedulesLoading || barbersLoading || locationsLoading) {
+    return (
+      <SidebarProvider>
+        <AppSidebar />
+        <SidebarInset>
+          <header className="flex h-16 shrink-0 items-center gap-2 border-b border-gray-200 px-4 bg-white">
+            <SidebarTrigger className="-ml-1" />
+            <Separator orientation="vertical" className="mr-2 h-4" />
+            <h1 className="text-lg font-semibold text-black">Rodízio de Barbeiros</h1>
+          </header>
+          <div className="flex items-center justify-center flex-1">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black mx-auto mb-4"></div>
+              <p>Carregando horários...</p>
+            </div>
+          </div>
+        </SidebarInset>
+      </SidebarProvider>
     )
   }
 
@@ -142,14 +176,14 @@ export default function SchedulePage() {
             <TabsContent value="overview" className="space-y-6">
               {/* Resumo por localidade */}
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                {locations.map((location) => {
-                  const barbersInLocation = getBarbersByLocation(location)
+                {locations?.map((location) => {
+                  const barbersInLocation = getBarbersByLocation(location.name)
                   return (
-                    <Card key={location} className="border border-gray-200 shadow-lg bg-white">
+                    <Card key={location.id} className="border border-gray-200 shadow-lg bg-white">
                       <CardHeader className="pb-3">
                         <div className="flex items-center gap-2">
-                          <div className={`w-3 h-3 rounded-full ${getLocationColor(location)}`} />
-                          <CardTitle className="text-lg text-black">{location}</CardTitle>
+                          <div className={`w-3 h-3 rounded-full ${getLocationColor(location.name)}`} />
+                          <CardTitle className="text-lg text-black">{location.name}</CardTitle>
                         </div>
                       </CardHeader>
                       <CardContent>
@@ -159,8 +193,8 @@ export default function SchedulePage() {
                             <span className="font-medium text-black">{barbersInLocation.length}</span>
                           </div>
                           <div className="space-y-1">
-                            {barbersInLocation.slice(0, 3).map(([id, barber]) => (
-                              <div key={id} className="text-xs text-gray-500">
+                            {barbersInLocation.slice(0, 3).map((barber) => (
+                              <div key={barber.id} className="text-xs text-gray-500">
                                 • {barber.name}
                               </div>
                             ))}
@@ -203,23 +237,25 @@ export default function SchedulePage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {Object.entries(barberSchedules).map(([id, barber]) => (
-                          <tr key={id} className="border-t border-gray-200">
+                        {barbers?.map((barber) => (
+                          <tr key={barber.id} className="border-t border-gray-200">
                             <td className="p-2 font-medium text-black">{barber.name}</td>
                             {weekDays
                               .slice(1)
                               .concat(weekDays.slice(0, 1))
                               .map((day) => {
-                                const schedule = getScheduleForDay(id, day.value)
+                                const schedule = getScheduleForDay(barber.id, day.value)
                                 return (
                                   <td key={day.value} className="p-2 text-center">
                                     {schedule ? (
                                       <div className="space-y-1">
                                         <Badge
                                           variant="outline"
-                                          className={`${getLocationColor(schedule.location)} text-white text-xs border-0`}
+                                          className={`${getLocationColor(
+                                            schedule.location.name,
+                                          )} text-white text-xs border-0`}
                                         >
-                                          {schedule.location}
+                                          {schedule.location.name}
                                         </Badge>
                                         <div className="text-xs text-gray-500">
                                           {schedule.startTime}-{schedule.endTime}
@@ -244,14 +280,16 @@ export default function SchedulePage() {
 
             <TabsContent value="location" className="space-y-6">
               <div className="grid gap-6 md:grid-cols-2">
-                {locations.map((location) => {
-                  const barbersInLocation = getBarbersByLocation(location)
+                {locations?.map((location) => {
+                  const barbersInLocation = getBarbersByLocation(location.name)
+                  const locationSchedules = schedules?.filter((s) => s.location.name === location.name) || []
+
                   return (
-                    <Card key={location} className="border border-gray-200 shadow-lg bg-white">
+                    <Card key={location.id} className="border border-gray-200 shadow-lg bg-white">
                       <CardHeader>
                         <CardTitle className="flex items-center gap-2 text-black">
                           <MapPin className="h-5 w-5" />
-                          {location}
+                          {location.name}
                         </CardTitle>
                         <CardDescription className="text-gray-600">
                           {barbersInLocation.length} barbeiro(s) nesta localidade
@@ -259,16 +297,18 @@ export default function SchedulePage() {
                       </CardHeader>
                       <CardContent>
                         <div className="space-y-4">
-                          {barbersInLocation.map(([id, barber]) => {
-                            const locationSchedules = barber.schedules.filter((s) => s.location === location)
+                          {barbersInLocation.map((barber) => {
+                            const barberLocationSchedules = locationSchedules.filter(
+                              (s) => s.barberId === barber.id,
+                            )
                             return (
-                              <div key={id} className="p-4 border border-gray-200 rounded-lg">
+                              <div key={barber.id} className="p-4 border border-gray-200 rounded-lg">
                                 <div className="flex items-center gap-2 mb-3">
                                   <User className="h-4 w-4 text-gray-500" />
                                   <span className="font-medium text-black">{barber.name}</span>
                                 </div>
                                 <div className="space-y-2">
-                                  {locationSchedules.map((schedule, index) => (
+                                  {barberLocationSchedules.map((schedule, index) => (
                                     <div key={index} className="flex items-center justify-between text-sm">
                                       <div className="flex items-center gap-2">
                                         <Clock className="h-3 w-3 text-gray-500" />
@@ -277,15 +317,12 @@ export default function SchedulePage() {
                                         </span>
                                       </div>
                                       <div className="flex gap-1">
-                                        {schedule.days.map((day) => (
-                                          <Badge
-                                            key={day}
-                                            variant="outline"
-                                            className="text-xs border-gray-300 text-gray-700"
-                                          >
-                                            {weekDays.find((d) => d.value === day)?.short}
-                                          </Badge>
-                                        ))}
+                                        <Badge
+                                          variant="outline"
+                                          className="text-xs border-gray-300 text-gray-700"
+                                        >
+                                          {weekDays.find((d) => d.value === schedule.weekDay)?.short}
+                                        </Badge>
                                       </div>
                                     </div>
                                   ))}
@@ -303,47 +340,64 @@ export default function SchedulePage() {
 
             <TabsContent value="barber" className="space-y-6">
               <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                {Object.entries(barberSchedules).map(([id, barber]) => (
-                  <Card
-                    key={id}
-                    className={`border shadow-lg bg-white ${currentBarber === id ? "ring-2 ring-black border-black" : "border-gray-200"}`}
-                  >
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-black">
-                        <User className="h-5 w-5" />
-                        {barber.name}
-                        {currentBarber === id && <Badge className="bg-black text-white">Você</Badge>}
-                      </CardTitle>
-                      <CardDescription className="text-gray-600">
-                        {barber.schedules.length} localidade(s)
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-3">
-                        {barber.schedules.map((schedule, index) => (
-                          <div key={index} className="p-3 border border-gray-200 rounded-lg">
-                            <div className="flex items-center justify-between mb-2">
-                              <Badge className={`${getLocationColor(schedule.location)} text-white border-0`}>
-                                {schedule.location}
-                              </Badge>
-                              <div className="flex items-center gap-1 text-xs text-gray-500">
-                                <Clock className="h-3 w-3" />
-                                {schedule.startTime} - {schedule.endTime}
+                {barbers?.map((barber) => {
+                  const barberSchedules = schedules?.filter((s) => s.barberId === barber.id) || []
+                  const uniqueLocations = [...new Set(barberSchedules.map((s) => s.location.name))]
+
+                  return (
+                    <Card
+                      key={barber.id}
+                      className={`border shadow-lg bg-white ${
+                        currentBarber === barber.id ? "ring-2 ring-black border-black" : "border-gray-200"
+                      }`}
+                    >
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2 text-black">
+                          <User className="h-5 w-5" />
+                          {barber.name}
+                          {currentBarber === barber.id && <Badge className="bg-black text-white">Você</Badge>}
+                        </CardTitle>
+                        <CardDescription className="text-gray-600">
+                          {uniqueLocations.length} localidade(s)
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-3">
+                          {uniqueLocations.map((locationName) => {
+                            const locationSchedules = barberSchedules.filter(
+                              (s) => s.location.name === locationName,
+                            )
+                            return (
+                              <div key={locationName} className="p-3 border border-gray-200 rounded-lg">
+                                <div className="flex items-center justify-between mb-2">
+                                  <Badge className={`${getLocationColor(locationName)} text-white border-0`}>
+                                    {locationName}
+                                  </Badge>
+                                </div>
+                                <div className="space-y-1">
+                                  {locationSchedules.map((schedule, index) => (
+                                    <div key={index} className="flex items-center justify-between text-sm">
+                                      <div className="flex items-center gap-1 text-xs text-gray-500">
+                                        <Clock className="h-3 w-3" />
+                                        {schedule.startTime} - {schedule.endTime}
+                                      </div>
+                                      <Badge
+                                        variant="outline"
+                                        className="text-xs border-gray-300 text-gray-700"
+                                      >
+                                        {weekDays.find((d) => d.value === schedule.weekDay)?.short}
+                                      </Badge>
+                                    </div>
+                                  ))}
+                                </div>
                               </div>
-                            </div>
-                            <div className="flex flex-wrap gap-1">
-                              {schedule.days.map((day) => (
-                                <Badge key={day} variant="outline" className="text-xs border-gray-300 text-gray-700">
-                                  {weekDays.find((d) => d.value === day)?.short}
-                                </Badge>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                            )
+                          })}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )
+                })}
               </div>
             </TabsContent>
           </Tabs>

@@ -10,46 +10,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Calendar, Clock, DollarSign, TrendingUp, MapPin, Scissors, Star, Plus } from "lucide-react"
-
-// Dados simulados para demonstração
-const mockTodayAppointments = [
-  {
-    id: "1",
-    clientName: "João Silva",
-    service: "Corte + Barba",
-    time: "09:00",
-    duration: 45,
-    status: "confirmed",
-    plan: "Barbearia Premium",
-    paymentMethod: "Plano",
-  },
-  {
-    id: "2",
-    clientName: "Pedro Santos",
-    service: "Corte de Cabelo",
-    time: "10:00",
-    duration: 30,
-    status: "confirmed",
-    plan: "Cabelo VIP",
-    paymentMethod: "Plano",
-  },
-  {
-    id: "3",
-    clientName: "Carlos Oliveira",
-    service: "Barba",
-    time: "11:30",
-    duration: 20,
-    status: "waiting",
-    plan: "Avulso",
-    paymentMethod: "Pix",
-  },
-]
-
-const plans = [
-  { name: "Barbearia Premium", price: 125.9, color: "bg-black" },
-  { name: "Cabelo VIP", price: 69.9, color: "bg-gray-800" },
-  { name: "Barba VIP", price: 69.9, color: "bg-gray-600" },
-]
+import { useApi } from "@/hooks/use-api"
+import { dashboardApi, plansApi, type DashboardStats, type Plan } from "@/lib/api"
+import { toast } from "sonner" // 👈 NOVO: Importe o toast aqui
 
 export default function DashboardPage() {
   const [barberId, setBarberId] = useState<string | null>(null)
@@ -67,8 +30,61 @@ export default function DashboardPage() {
     }
   }, [router])
 
+  // Fetch dashboard stats
+  const {
+    data: dashboardStats,
+    loading: statsLoading,
+    error: statsError,
+    refetch: refetchStats,
+  } = useApi<DashboardStats>(
+    () =>
+      dashboardApi.getStats({
+        barberId: barberId || undefined,
+        locationId: location || undefined,
+        date: new Date().toISOString().split("T")[0],
+      }),
+    [barberId, location],
+  )
+
+  // Fetch plans
+  const { data: plans, loading: plansLoading } = useApi<Plan[]>(() => plansApi.getAll(), [])
+
+  // 👇 NOVO: Efeito para exibir toast de erro
+  useEffect(() => {
+    if (statsError) {
+      toast.error("Erro ao carregar dados", {
+        description: "Não foi possível buscar as estatísticas do dashboard. Tente novamente.",
+        action: {
+          label: "Tentar Novamente",
+          onClick: () => refetchStats(),
+        },
+      })
+    }
+  }, [statsError, refetchStats])
+
   if (!barberId || !location) {
-    return <div>Carregando...</div>
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black mx-auto mb-4"></div>
+          <p>Carregando...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // A tela de erro principal pode ser mantida como um fallback
+  if (statsError && !dashboardStats) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <p className="text-red-600 mb-4">Ocorreu um erro ao carregar as informações.</p>
+          <Button onClick={() => refetchStats()} className="bg-black hover:bg-gray-800 text-white">
+            Tentar Novamente
+          </Button>
+        </div>
+      </div>
+    )
   }
 
   const getBarberName = (id: string) => {
@@ -94,11 +110,6 @@ export default function DashboardPage() {
     return names[id] || id
   }
 
-  const todayRevenue = mockTodayAppointments.reduce((total, apt) => {
-    if (apt.paymentMethod === "Plano") return total
-    return total + (apt.service === "Corte + Barba" ? 40 : apt.service === "Corte de Cabelo" ? 25 : 20)
-  }, 0)
-
   return (
     <SidebarProvider>
       <AppSidebar />
@@ -123,8 +134,10 @@ export default function DashboardPage() {
                 <Calendar className="h-4 w-4 text-black" />
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-black">{mockTodayAppointments.length}</div>
-                <p className="text-xs text-gray-500">+2 desde ontem</p>
+                <div className="text-3xl font-bold text-black">
+                  {statsLoading ? "..." : dashboardStats?.today.appointments || 0}
+                </div>
+                <p className="text-xs text-gray-500">Agendamentos confirmados</p>
               </CardContent>
             </Card>
 
@@ -134,7 +147,9 @@ export default function DashboardPage() {
                 <DollarSign className="h-4 w-4 text-black" />
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-black">R$ {todayRevenue}</div>
+                <div className="text-3xl font-bold text-black">
+                  R$ {statsLoading ? "..." : dashboardStats?.today.revenue.toFixed(2) || "0.00"}
+                </div>
                 <p className="text-xs text-gray-500">Apenas serviços avulsos</p>
               </CardContent>
             </Card>
@@ -145,7 +160,9 @@ export default function DashboardPage() {
                 <Star className="h-4 w-4 text-black" />
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-black">2</div>
+                <div className="text-3xl font-bold text-black">
+                  {statsLoading ? "..." : dashboardStats?.today.vipClients || 0}
+                </div>
                 <p className="text-xs text-gray-500">Com planos ativos</p>
               </CardContent>
             </Card>
@@ -156,7 +173,9 @@ export default function DashboardPage() {
                 <TrendingUp className="h-4 w-4 text-black" />
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-black">75%</div>
+                <div className="text-3xl font-bold text-black">
+                  {statsLoading ? "..." : `${dashboardStats?.today.occupancyRate || 0}%`}
+                </div>
                 <p className="text-xs text-gray-500">Horários ocupados</p>
               </CardContent>
             </Card>
@@ -172,57 +191,83 @@ export default function DashboardPage() {
                       <CardTitle className="text-xl text-black">Agendamentos de Hoje</CardTitle>
                       <CardDescription className="text-gray-600">Seus próximos atendimentos</CardDescription>
                     </div>
-                    <Button className="bg-black hover:bg-gray-800 text-white">
+                    <Button
+                      className="bg-black hover:bg-gray-800 text-white"
+                      onClick={() => router.push("/appointments")}
+                    >
                       <Plus className="h-4 w-4 mr-2" />
                       Novo Agendamento
                     </Button>
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-4">
-                    {mockTodayAppointments.map((appointment) => (
-                      <div
-                        key={appointment.id}
-                        className="flex items-center justify-between p-4 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
-                      >
-                        <div className="flex items-center space-x-4">
-                          <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
-                            <Scissors className="h-5 w-5 text-black" />
-                          </div>
-                          <div>
-                            <p className="font-semibold text-black">{appointment.clientName}</p>
-                            <p className="text-sm text-gray-600">{appointment.service}</p>
-                            <div className="flex items-center space-x-2 mt-1">
-                              <Clock className="h-3 w-3 text-gray-400" />
-                              <span className="text-xs text-gray-500">
-                                {appointment.time} ({appointment.duration}min)
-                              </span>
+                  {statsLoading ? (
+                    <div className="space-y-4">
+                      {[1, 2, 3].map((i) => (
+                        <div key={i} className="animate-pulse">
+                          <div className="flex items-center space-x-4 p-4 border border-gray-200 rounded-xl">
+                            <div className="w-12 h-12 bg-gray-200 rounded-full"></div>
+                            <div className="flex-1 space-y-2">
+                              <div className="h-4 bg-gray-200 rounded w-1/4"></div>
+                              <div className="h-3 bg-gray-200 rounded w-1/2"></div>
                             </div>
                           </div>
                         </div>
-                        <div className="flex items-center space-x-2">
-                          <Badge
-                            variant={appointment.plan === "Avulso" ? "outline" : "default"}
-                            className={
-                              appointment.plan !== "Avulso" ? "bg-black text-white" : "border-gray-300 text-gray-700"
-                            }
-                          >
-                            {appointment.plan}
-                          </Badge>
-                          <Badge
-                            variant={appointment.status === "confirmed" ? "default" : "secondary"}
-                            className={
-                              appointment.status === "confirmed"
-                                ? "bg-gray-800 text-white"
-                                : "bg-gray-200 text-gray-700"
-                            }
-                          >
-                            {appointment.status === "confirmed" ? "Confirmado" : "Aguardando"}
-                          </Badge>
+                      ))}
+                    </div>
+                  ) : dashboardStats?.appointments.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                      <p>Nenhum agendamento para hoje</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {dashboardStats?.appointments.map((appointment) => (
+                        <div
+                          key={appointment.id}
+                          className="flex items-center justify-between p-4 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
+                        >
+                          <div className="flex items-center space-x-4">
+                            <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
+                              <Scissors className="h-5 w-5 text-black" />
+                            </div>
+                            <div>
+                              <p className="font-semibold text-black">{appointment.client.name}</p>
+                              <p className="text-sm text-gray-600">{appointment.service.name}</p>
+                              <div className="flex items-center space-x-2 mt-1">
+                                <Clock className="h-3 w-3 text-gray-400" />
+                                <span className="text-xs text-gray-500">
+                                  {appointment.startTime} ({appointment.service.durationMinutes}min)
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Badge
+                              variant={appointment.client.plan?.name === "Avulso" ? "outline" : "default"}
+                              className={
+                                appointment.client.plan?.name !== "Avulso"
+                                  ? "bg-black text-white"
+                                  : "border-gray-300 text-gray-700"
+                              }
+                            >
+                              {appointment.client.plan?.name || "Avulso"}
+                            </Badge>
+                            <Badge
+                              variant={appointment.status === "confirmed" ? "default" : "secondary"}
+                              className={
+                                appointment.status === "confirmed"
+                                  ? "bg-gray-800 text-white"
+                                  : "bg-gray-200 text-gray-700"
+                              }
+                            >
+                              {appointment.status === "confirmed" ? "Confirmado" : "Aguardando"}
+                            </Badge>
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>
@@ -235,19 +280,41 @@ export default function DashboardPage() {
                   <CardDescription className="text-gray-600">Planos disponíveis para clientes</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-4">
-                    {plans.map((plan) => (
-                      <div key={plan.name} className={`p-4 rounded-xl text-white ${plan.color}`}>
-                        <h3 className="font-semibold">{plan.name}</h3>
-                        <p className="text-2xl font-bold">R$ {plan.price.toFixed(2)}</p>
-                        <p className="text-xs opacity-90">por mês</p>
-                      </div>
-                    ))}
-                    <div className="p-4 border-2 border-dashed border-gray-300 rounded-xl text-center bg-gray-50">
-                      <p className="text-sm text-gray-600">Promoção Ativa</p>
-                      <p className="font-semibold text-black">50% OFF primeiro mês</p>
+                  {plansLoading ? (
+                    <div className="space-y-4">
+                      {[1, 2, 3].map((i) => (
+                        <div key={i} className="animate-pulse">
+                          <div className="h-20 bg-gray-200 rounded-xl"></div>
+                        </div>
+                      ))}
                     </div>
-                  </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {plans
+                        ?.filter((plan) => plan.name !== "Avulso")
+                        .map((plan) => {
+                          const getColorClass = (name: string) => {
+                            if (name.includes("Premium")) return "bg-black"
+                            if (name.includes("Cabelo")) return "bg-gray-800"
+                            if (name.includes("Barba")) return "bg-gray-600"
+                            return "bg-gray-500"
+                          }
+
+                          return (
+                            <div key={plan.id} className={`p-4 rounded-xl text-white ${getColorClass(plan.name)}`}>
+                              <h3 className="font-semibold">{plan.name}</h3>
+                              <p className="text-2xl font-bold">R$ {Number(plan.price).toFixed(2)}</p>
+                              <p className="text-xs opacity-90">por mês</p>
+                              <p className="text-xs opacity-75 mt-1">{plan._count?.clients || 0} assinantes</p>
+                            </div>
+                          )
+                        })}
+                      <div className="p-4 border-2 border-dashed border-gray-300 rounded-xl text-center bg-gray-50">
+                        <p className="text-sm text-gray-600">Promoção Ativa</p>
+                        <p className="font-semibold text-black">50% OFF primeiro mês</p>
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>

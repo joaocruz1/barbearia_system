@@ -21,147 +21,116 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-
-// Define a consistent type for a Client
-interface Client {
-  id: string;
-  name: string;
-  phone: string;
-  email: string;
-  plan: string;
-  planActive: boolean;
-  planStartDate: string | null;
-  planEndDate: string | null;
-  totalCuts: number;
-  totalBeards: number;
-  lastVisit: string | null;
-}
-
-const plans = [
-  { id: "premium", name: "Barbearia Premium", price: 125.9, color: "bg-black" },
-  { id: "cabelo", name: "Cabelo VIP", price: 69.9, color: "bg-gray-800" },
-  { id: "barba", name: "Barba VIP", price: 69.9, color: "bg-gray-600" },
-  { id: "avulso", name: "Avulso", price: 0, color: "bg-gray-400" },
-]
-
-// Apply the Client type to the mock data array
-const mockClients: Client[] = [
-  {
-    id: "1",
-    name: "João Silva",
-    phone: "35999887766",
-    email: "joao@email.com",
-    plan: "premium",
-    planActive: true,
-    planStartDate: "2024-12-01",
-    planEndDate: "2025-12-01",
-    totalCuts: 8,
-    totalBeards: 5,
-    lastVisit: "2025-01-01",
-  },
-  {
-    id: "2",
-    name: "Pedro Santos",
-    phone: "35999776655",
-    email: "pedro@email.com",
-    plan: "cabelo",
-    planActive: true,
-    planStartDate: "2024-11-15",
-    planEndDate: "2025-11-15",
-    totalCuts: 12,
-    totalBeards: 0,
-    lastVisit: "2024-12-30",
-  },
-  {
-    id: "3",
-    name: "Carlos Oliveira",
-    phone: "35999665544",
-    email: "carlos@email.com",
-    plan: "avulso",
-    planActive: false,
-    planStartDate: null,
-    planEndDate: null,
-    totalCuts: 3,
-    totalBeards: 2,
-    lastVisit: "2024-12-28",
-  },
-  {
-    id: "4",
-    name: "Ana Costa",
-    phone: "35999554433",
-    email: "ana@email.com",
-    plan: "barba",
-    planActive: true,
-    planStartDate: "2024-12-10",
-    planEndDate: "2025-12-10",
-    totalCuts: 0,
-    totalBeards: 6,
-    lastVisit: "2025-01-01",
-  },
-]
+import { useApi, useMutation } from "@/hooks/use-api"
+import { clientsApi, plansApi, type Client, type Plan, type CreateClientData } from "@/lib/api"
+import { toast } from "sonner"
 
 export default function ClientsPage() {
-  // Apply the Client type to the useState hook
-  const [clients, setClients] = useState<Client[]>(mockClients)
   const [searchTerm, setSearchTerm] = useState("")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [selectedPlan, setSelectedPlan] = useState("all")
+
   const [newClient, setNewClient] = useState({
     name: "",
     phone: "",
     email: "",
-    plan: "avulso",
+    planId: "",
   })
 
-  const filteredClients = clients.filter((client) => {
-    const matchesSearch =
-      client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      client.phone.includes(searchTerm) ||
-      client.email.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesPlan = selectedPlan === "all" || client.plan === selectedPlan
-    return matchesSearch && matchesPlan
-  })
+  // API calls
+  const {
+    data: clients,
+    loading: clientsLoading,
+    refetch: refetchClients,
+  } = useApi<Client[]>(
+    () =>
+      clientsApi.getAll({
+        search: searchTerm,
+        planId: selectedPlan === "all" ? undefined : selectedPlan,
+      }),
+    [searchTerm, selectedPlan],
+  )
 
-  const handleCreateClient = () => {
-    // This new client object now correctly matches the Client type
-    const client: Client = {
-      id: Date.now().toString(),
-      ...newClient,
-      planActive: newClient.plan !== "avulso",
-      planStartDate: newClient.plan !== "avulso" ? new Date().toISOString().split("T")[0] : null,
-      planEndDate:
-        newClient.plan !== "avulso"
-          ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
-          : null,
-      totalCuts: 0,
-      totalBeards: 0,
-      lastVisit: null,
+  const { data: plans, loading: plansLoading } = useApi<Plan[]>(() => plansApi.getAll(), [])
+
+  // Mutation for creating clients
+  const { mutate: createClient, loading: creatingClient } = useMutation((data: CreateClientData) =>
+    clientsApi.create(data),
+  )
+
+  // Mutation for deleting clients
+  const { mutate: deleteClient } = useMutation((id: string) => clientsApi.delete(id))
+
+  const handleCreateClient = async () => {
+    if (!newClient.name || !newClient.phone) {
+      // 👇 AJUSTADO
+      toast.error("Erro", {
+        description: "Nome e telefone são obrigatórios",
+      })
+      return
     }
-    setClients([...clients, client])
-    setNewClient({
-      name: "",
-      phone: "",
-      email: "",
-      plan: "avulso",
-    })
-    setIsDialogOpen(false)
+
+    const clientData: CreateClientData = {
+      name: newClient.name,
+      phone: newClient.phone,
+      email: newClient.email || undefined,
+      planId: newClient.planId || undefined,
+      planStartDate: newClient.planId ? new Date().toISOString().split("T")[0] : undefined,
+      planEndDate: newClient.planId
+        ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
+        : undefined,
+    }
+
+    try {
+      await createClient(clientData)
+      // 👇 AJUSTADO
+      toast.success("Sucesso", {
+        description: "Cliente cadastrado com sucesso!",
+      })
+      setNewClient({
+        name: "",
+        phone: "",
+        email: "",
+        planId: "",
+      })
+      setIsDialogOpen(false)
+      refetchClients()
+    } catch (error) {
+      // 👇 AJUSTADO
+      toast.error("Erro", {
+        description: "Falha ao cadastrar cliente. Verifique se o telefone já não está em uso.",
+      })
+    }
   }
 
-  const handleDeleteClient = (clientId: string) => {
-    setClients(clients.filter((client) => client.id !== clientId))
+  const handleDeleteClient = async (clientId: string) => {
+    try {
+      await deleteClient(clientId)
+      // 👇 AJUSTADO
+      toast.success("Sucesso", {
+        description: "Cliente removido com sucesso!",
+      })
+      refetchClients()
+    } catch (error) {
+      // 👇 AJUSTADO
+      toast.error("Erro", {
+        description: "Falha ao remover cliente.",
+      })
+    }
   }
 
-  const getPlanInfo = (planId: string) => {
-    return plans.find((p) => p.id === planId) || plans[3]
+  const getPlanInfo = (planId?: string) => {
+    return plans?.find((p) => p.id === planId) || { name: "Avulso", price: 0, id: "avulso" }
   }
 
   const getClientStats = () => {
+    if (!clients) return { total: 0, withPlans: 0, premium: 0, revenue: 0 }
+
     const total = clients.length
-    const withPlans = clients.filter((c) => c.planActive).length
-    const premium = clients.filter((c) => c.plan === "premium").length
+    const withPlans = clients.filter((c) => c.plan && c.plan.name !== "Avulso").length
+    const premium = clients.filter((c) => c.plan?.name === "Barbearia Premium").length
     const revenue = clients.reduce((sum, client) => {
-      const plan = getPlanInfo(client.plan)
-      return sum + (client.planActive ? plan.price : 0)
+      return sum + (client.plan ? Number(client.plan.price) : 0)
     }, 0)
 
     return { total, withPlans, premium, revenue }
@@ -188,7 +157,7 @@ export default function ClientsPage() {
                 <User className="h-4 w-4 text-black" />
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-black">{stats.total}</div>
+                <div className="text-3xl font-bold text-black">{clientsLoading ? "..." : stats.total}</div>
                 <p className="text-xs text-gray-500">Clientes cadastrados</p>
               </CardContent>
             </Card>
@@ -199,7 +168,7 @@ export default function ClientsPage() {
                 <Star className="h-4 w-4 text-black" />
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-black">{stats.withPlans}</div>
+                <div className="text-3xl font-bold text-black">{clientsLoading ? "..." : stats.withPlans}</div>
                 <p className="text-xs text-gray-500">Assinantes ativos</p>
               </CardContent>
             </Card>
@@ -210,7 +179,7 @@ export default function ClientsPage() {
                 <Crown className="h-4 w-4 text-black" />
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-black">{stats.premium}</div>
+                <div className="text-3xl font-bold text-black">{clientsLoading ? "..." : stats.premium}</div>
                 <p className="text-xs text-gray-500">Clientes premium</p>
               </CardContent>
             </Card>
@@ -221,7 +190,9 @@ export default function ClientsPage() {
                 <Calendar className="h-4 w-4 text-black" />
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-black">R$ {stats.revenue.toFixed(2)}</div>
+                <div className="text-3xl font-bold text-black">
+                  R$ {clientsLoading ? "..." : stats.revenue.toFixed(2)}
+                </div>
                 <p className="text-xs text-gray-500">Planos ativos</p>
               </CardContent>
             </Card>
@@ -300,27 +271,39 @@ export default function ClientsPage() {
                       <Label htmlFor="plan" className="text-black">
                         Plano
                       </Label>
-                      <Select onValueChange={(value) => setNewClient({ ...newClient, plan: value })}>
+                      <Select onValueChange={(value) => setNewClient({ ...newClient, planId: value })}>
                         <SelectTrigger className="border-gray-300 focus:border-black">
                           <SelectValue placeholder="Selecione o plano" />
                         </SelectTrigger>
                         <SelectContent>
-                          {plans.map((plan) => (
-                            <SelectItem key={plan.id} value={plan.id}>
-                              <div className="flex items-center justify-between w-full">
-                                <span>{plan.name}</span>
-                                {plan.price > 0 && (
-                                  <span className="text-sm text-gray-500 ml-2">R$ {plan.price.toFixed(2)}</span>
-                                )}
-                              </div>
+                          {plansLoading ? (
+                            <SelectItem value="loading" disabled>
+                              Carregando...
                             </SelectItem>
-                          ))}
+                          ) : (
+                            plans?.map((plan) => (
+                              <SelectItem key={plan.id} value={plan.id}>
+                                <div className="flex items-center justify-between w-full">
+                                  <span>{plan.name}</span>
+                                  {Number(plan.price) > 0 && (
+                                    <span className="text-sm text-gray-500 ml-2">
+                                      R$ {Number(plan.price).toFixed(2)}
+                                    </span>
+                                  )}
+                                </div>
+                              </SelectItem>
+                            ))
+                          )}
                         </SelectContent>
                       </Select>
                     </div>
                   </div>
-                  <Button onClick={handleCreateClient} className="w-full bg-black hover:bg-gray-800 text-white">
-                    Cadastrar Cliente
+                  <Button
+                    onClick={handleCreateClient}
+                    className="w-full bg-black hover:bg-gray-800 text-white"
+                    disabled={creatingClient}
+                  >
+                    {creatingClient ? "Cadastrando..." : "Cadastrar Cliente"}
                   </Button>
                 </DialogContent>
               </Dialog>
@@ -346,7 +329,7 @@ export default function ClientsPage() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">Todos os planos</SelectItem>
-                        {plans.map((plan) => (
+                        {plans?.map((plan) => (
                           <SelectItem key={plan.id} value={plan.id}>
                             {plan.name}
                           </SelectItem>
@@ -362,19 +345,40 @@ export default function ClientsPage() {
                 <CardHeader>
                   <CardTitle className="text-black">Clientes Cadastrados</CardTitle>
                   <CardDescription className="text-gray-600">
-                    {filteredClients.length} cliente(s) encontrado(s)
+                    {clientsLoading ? "Carregando..." : `${clients?.length || 0} cliente(s) encontrado(s)`}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {filteredClients.length === 0 ? (
+                    {clientsLoading ? (
+                      <div className="space-y-4">
+                        {[1, 2, 3].map((i) => (
+                          <div key={i} className="animate-pulse">
+                            <div className="flex items-center space-x-4 p-6 border border-gray-200 rounded-xl">
+                              <div className="w-12 h-12 bg-gray-200 rounded-full"></div>
+                              <div className="flex-1 space-y-2">
+                                <div className="h-4 bg-gray-200 rounded w-1/4"></div>
+                                <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : !clients || clients.length === 0 ? (
                       <div className="text-center py-8 text-gray-500">
                         <User className="h-12 w-12 mx-auto mb-4 opacity-50" />
                         <p>Nenhum cliente encontrado</p>
                       </div>
                     ) : (
-                      filteredClients.map((client) => {
-                        const planInfo = getPlanInfo(client.plan)
+                      clients.map((client) => {
+                        const planInfo = getPlanInfo(client.planId)
+                        const getColorClass = (planName: string) => {
+                          if (planName.includes("Premium")) return "bg-black"
+                          if (planName.includes("Cabelo")) return "bg-gray-800"
+                          if (planName.includes("Barba")) return "bg-gray-600"
+                          return "bg-gray-400"
+                        }
+
                         return (
                           <div
                             key={client.id}
@@ -382,9 +386,9 @@ export default function ClientsPage() {
                           >
                             <div className="flex items-center space-x-4">
                               <div
-                                className={`w-12 h-12 ${planInfo.color} rounded-full flex items-center justify-center`}
+                                className={`w-12 h-12 ${getColorClass(planInfo.name)} rounded-full flex items-center justify-center`}
                               >
-                                {client.planActive && client.plan !== "avulso" ? (
+                                {client.plan && client.plan.name !== "Avulso" ? (
                                   <Star className="h-5 w-5 text-white" />
                                 ) : (
                                   <User className="h-5 w-5 text-white" />
@@ -393,7 +397,9 @@ export default function ClientsPage() {
                               <div>
                                 <div className="flex items-center gap-2">
                                   <p className="font-semibold text-black">{client.name}</p>
-                                  {client.plan === "premium" && <Crown className="h-4 w-4 text-black" />}
+                                  {client.plan?.name === "Barbearia Premium" && (
+                                    <Crown className="h-4 w-4 text-black" />
+                                  )}
                                 </div>
                                 <div className="flex items-center space-x-4 text-sm text-gray-600">
                                   <div className="flex items-center space-x-1">
@@ -403,25 +409,23 @@ export default function ClientsPage() {
                                   {client.email && <span>{client.email}</span>}
                                 </div>
                                 <div className="flex items-center space-x-4 mt-1 text-xs text-gray-500">
-                                  <span>Cortes: {client.totalCuts}</span>
-                                  <span>Barbas: {client.totalBeards}</span>
-                                  {client.lastVisit && (
-                                    <span>Última visita: {new Date(client.lastVisit).toLocaleDateString("pt-BR")}</span>
+                                  <span>Agendamentos: {client._count?.appointments || 0}</span>
+                                  {client.planEndDate && (
+                                    <span>
+                                      Plano válido até: {new Date(client.planEndDate).toLocaleDateString("pt-BR")}
+                                    </span>
                                   )}
                                 </div>
                               </div>
                             </div>
                             <div className="flex items-center space-x-3">
                               <div className="text-right">
-                                <Badge className={`${planInfo.color} text-white mb-2 border-0`}>{planInfo.name}</Badge>
-                                {client.planActive && client.plan !== "avulso" && (
+                                <Badge className={`${getColorClass(planInfo.name)} text-white mb-2 border-0`}>
+                                  {planInfo.name}
+                                </Badge>
+                                {client.plan && client.plan.name !== "Avulso" && (
                                   <div className="text-xs text-gray-500">
-                                    <p>
-                                      Válido até:{" "}
-                                      {client.planEndDate
-                                        ? new Date(client.planEndDate).toLocaleDateString("pt-BR")
-                                        : "N/A"}
-                                    </p>
+                                    <p>R$ {Number(client.plan.price).toFixed(2)}/mês</p>
                                   </div>
                                 )}
                               </div>
