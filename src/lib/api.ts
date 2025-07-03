@@ -1,5 +1,5 @@
 // Utilitários para chamadas à API
-const API_BASE_URL = "http://localhost:3000"
+const API_BASE_URL = process.env.NODE_ENV === "production" ? "" : "http://localhost:3000"
 
 class ApiError extends Error {
   constructor(
