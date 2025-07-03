@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
       appointmentDate: new Date(date),
     }
 
-    // Se barberId for fornecido, filtrar apenas os agendamentos desse barbeiro
+    // SEMPRE filtrar pelo barbeiro quando fornecido
     if (barberId) {
       where.barberId = barberId
     }

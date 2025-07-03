@@ -12,10 +12,9 @@ import { Scissors, User, Lock, MapPin } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 const locations = [
-  { id: "21baaab5-2188-4619-b075-afe7bc006ed2", name: "Rua 13" },
-  { id: "ec5dc912-3b79-4d38-b342-2dd2a257704d", name: "Avenida" },
-  { id: "a5a5bab9-a997-4013-9bee-5cfc8e8c04fb", name: "Inconfidentes" },
-  { id: "9c5650bc-56cd-4238-a736-7845e62276b5", name: "Ouro Fino" },
+  { id: "33c430c1-1652-4ee3-b4a1-00b141d9dd35", name: "Rua 13 - Ouro Fino" },
+  { id: "a5748ee0-bffc-41a0-9c74-46afc6468db2", name: "Avenida - Ouro Fino" },
+  { id: "b97c7d24-fff9-4ea8-9e4b-3d670b70e12d", name: "Inconfidentes" },
 ]
 
 const barbers = [

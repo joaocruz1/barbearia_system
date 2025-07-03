@@ -13,10 +13,11 @@ import { Calendar, Clock, DollarSign, TrendingUp, MapPin, Scissors, Star, Plus, 
 import { useApi } from "@/hooks/use-api"
 import { dashboardApi, plansApi, locationsApi, type DashboardStats, type Plan, type Location } from "@/lib/api"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { toast } from "sonner" // 🎯 Importando toast do sonner
+import { toast } from "sonner" // Importando toast do sonner
 
 export default function DashboardPage() {
   const [barberId, setBarberId] = useState<string | null>(null)
+  const [location, setLocation] = useState<string | null>(null)
   const [selectedLocationFilter, setSelectedLocationFilter] = useState<string>("all")
   const router = useRouter()
 
@@ -25,16 +26,18 @@ export default function DashboardPage() {
     const storedLocation = localStorage.getItem("barberLocation")
     if (!storedBarberId || !storedLocation) {
       router.push("/")
-      // Optionally, you might want to show a toast here if redirection happens due to missing info
-      toast.info("Atenção", {
-        description: "Você precisa estar logado e ter uma localidade definida para acessar o painel.",
+      // Adicionando um toast informativo se o usuário for redirecionado
+      toast.info("Acesso Restrito", {
+        description: "Você precisa estar logado para acessar o painel.",
+        duration: 3000,
       });
     } else {
       setBarberId(storedBarberId)
+      setLocation(storedLocation)
     }
   }, [router])
 
-  // Fetch dashboard stats
+  // Fetch dashboard stats APENAS do barbeiro logado
   const {
     data: dashboardStats,
     loading: statsLoading,
@@ -43,7 +46,7 @@ export default function DashboardPage() {
   } = useApi<DashboardStats>(
     () =>
       dashboardApi.getStats({
-        barberId: barberId || undefined,
+        barberId: barberId || undefined, // Sempre filtrar pelo barbeiro logado
         date: new Date().toISOString().split("T")[0],
       }),
     [barberId],
@@ -55,7 +58,7 @@ export default function DashboardPage() {
   // Fetch locations for filter
   const { data: locations } = useApi<Location[]>(() => locationsApi.getAll(), [])
 
-  if (!barberId) {
+  if (!barberId || !location) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
@@ -67,15 +70,15 @@ export default function DashboardPage() {
   }
 
   if (statsError) {
-    // 🎯 Usando toast.error do sonner aqui para exibir o erro
+    // Usando toast.error para exibir o erro ao carregar os dados
     toast.error("Erro ao carregar dados", {
-      description: `Falha ao buscar as estatísticas do painel. Detalhes: ${statsError || "Erro desconhecido."}`,
+      description: `Não foi possível carregar as estatísticas. Tente novamente. Detalhes: ${statsError || "Erro desconhecido."}`,
       duration: 5000,
     });
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <p className="text-red-600 mb-4">Erro ao carregar dados.</p>
+          <p className="text-red-600 mb-4">Ocorreu um erro ao carregar o painel.</p>
           <Button onClick={refetchStats} className="bg-black hover:bg-gray-800 text-white">
             Tentar Novamente
           </Button>
@@ -97,6 +100,15 @@ export default function DashboardPage() {
     return names[id] || id
   }
 
+  const getLocationName = (id: string) => {
+    const names: { [key: string]: string } = {
+      "rua13-ouro-fino": "Rua 13 - Ouro Fino",
+      "avenida-ouro-fino": "Avenida - Ouro Fino",
+      inconfidentes: "Inconfidentes",
+    }
+    return names[id] || id
+  }
+
   // Filtrar agendamentos por localidade se selecionado
   const filteredAppointments =
     dashboardStats?.appointments.filter((appointment) => {
@@ -114,7 +126,7 @@ export default function DashboardPage() {
           <div className="flex items-center gap-2">
             <span className="text-lg font-semibold text-black">Olá, {getBarberName(barberId)}!</span>
             <Badge variant="outline" className="border-gray-300 text-gray-700">
-              Todas as Localidades
+              {getLocationName(location)}
             </Badge>
           </div>
         </header>
@@ -124,20 +136,20 @@ export default function DashboardPage() {
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <Card className="border border-gray-200 shadow-lg bg-white">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-gray-600">Agendamentos Hoje</CardTitle>
+                <CardTitle className="text-sm font-medium text-gray-600">Meus Agendamentos Hoje</CardTitle>
                 <Calendar className="h-4 w-4 text-black" />
               </CardHeader>
               <CardContent>
                 <div className="text-3xl font-bold text-black">
                   {statsLoading ? "..." : dashboardStats?.today.appointments || 0}
                 </div>
-                <p className="text-xs text-gray-500">Em todas as localidades</p>
+                <p className="text-xs text-gray-500">Apenas seus agendamentos</p>
               </CardContent>
             </Card>
 
             <Card className="border border-gray-200 shadow-lg bg-white">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-gray-600">Receita Hoje</CardTitle>
+                <CardTitle className="text-sm font-medium text-gray-600">Minha Receita Hoje</CardTitle>
                 <DollarSign className="h-4 w-4 text-black" />
               </CardHeader>
               <CardContent>
@@ -150,7 +162,7 @@ export default function DashboardPage() {
 
             <Card className="border border-gray-200 shadow-lg bg-white">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-gray-600">Clientes VIP</CardTitle>
+                <CardTitle className="text-sm font-medium text-gray-600">Meus Clientes VIP</CardTitle>
                 <Star className="h-4 w-4 text-black" />
               </CardHeader>
               <CardContent>
@@ -163,7 +175,7 @@ export default function DashboardPage() {
 
             <Card className="border border-gray-200 shadow-lg bg-white">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-gray-600">Localidades Ativas</CardTitle>
+                <CardTitle className="text-sm font-medium text-gray-600">Minhas Localidades</CardTitle>
                 <TrendingUp className="h-4 w-4 text-black" />
               </CardHeader>
               <CardContent>
@@ -184,7 +196,7 @@ export default function DashboardPage() {
                     <div>
                       <CardTitle className="text-xl text-black">Seus Agendamentos de Hoje</CardTitle>
                       <CardDescription className="text-gray-600">
-                        Todos os seus atendimentos em todas as localidades
+                        Todos os seus atendimentos programados
                       </CardDescription>
                     </div>
                     <div className="flex items-center gap-2">

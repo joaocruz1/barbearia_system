@@ -60,7 +60,7 @@ export default function AppointmentsPage() {
     setBarberId(storedBarberId)
   }, [])
 
-  // API calls - Removido filtro de barberId para mostrar todos os agendamentos
+  // API calls - Filtrar APENAS pelos agendamentos do barbeiro logado
   const { data: clients, loading: clientsLoading } = useApi<Client[]>(
     () => clientsApi.getAll({ search: searchTerm }),
     [searchTerm],
@@ -76,8 +76,9 @@ export default function AppointmentsPage() {
     () =>
       appointmentsApi.getAll({
         date: selectedDate,
+        barberId: barberId || undefined, // SEMPRE filtrar pelo barbeiro logado
       }),
-    [selectedDate],
+    [selectedDate, barberId],
   )
 
   const { data: barbers } = useApi<Barber[]>(() => barbersApi.getAll(), [])
@@ -148,10 +149,11 @@ export default function AppointmentsPage() {
       }
     }
 
-    // Usar a localidade atual do barbeiro logado
+    // Mapear localidade do localStorage para ID do banco
     const currentLocation = localStorage.getItem("barberLocation")
-    const locationId =
-      locations?.find((l) => l.name.toLowerCase().replace(" ", "") === currentLocation)?.id || locations?.[0]?.id
+    // Use search for location directly rather than a fixed map
+    const locationObj = locations?.find((l) => l.name.toLowerCase().replace(/\s/g, '-') === currentLocation);
+    const locationId = locationObj?.id || locations?.[0]?.id; // Fallback to first location if not found
 
     const appointmentData: CreateAppointmentData = {
       clientId: newAppointment.clientId,
@@ -234,7 +236,7 @@ export default function AppointmentsPage() {
     }
   }
 
-  // Estatísticas rápidas
+  // Estatísticas rápidas - apenas dos agendamentos do barbeiro logado
   const todayStats = {
     total: filteredAppointments.length,
     confirmed: filteredAppointments.filter((a) => a.status === "confirmed" || a.status === "scheduled").length,
@@ -249,7 +251,7 @@ export default function AppointmentsPage() {
         <header className="flex h-16 shrink-0 items-center gap-2 border-b border-gray-200 px-4 bg-white">
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-2 h-4" />
-          <h1 className="text-lg font-semibold text-black">Agendamentos</h1>
+          <h1 className="text-lg font-semibold text-black">Meus Agendamentos</h1>
         </header>
 
         <div className="flex flex-1 flex-col gap-6 p-6 bg-gray-50">
@@ -522,12 +524,12 @@ export default function AppointmentsPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-black">
                     <Calendar className="h-5 w-5" />
-                    Agendamentos do Dia
+                    Seus Agendamentos do Dia
                   </CardTitle>
                   <CardDescription className="text-gray-600">
                     {appointmentsLoading
                       ? "Carregando..."
-                      : `${filteredAppointments.length} agendamento(s) para ${new Date(selectedDate).toLocaleDateString("pt-BR")}`}
+                      : `${filteredAppointments.length} agendamento(s) seus para ${new Date(selectedDate).toLocaleDateString("pt-BR")}`}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -551,7 +553,7 @@ export default function AppointmentsPage() {
                       <div className="text-center py-12 text-gray-500">
                         <Calendar className="h-16 w-16 mx-auto mb-4 opacity-50" />
                         <p className="text-lg font-medium">Nenhum agendamento encontrado</p>
-                        <p className="text-sm mt-2">Tente ajustar os filtros ou criar um novo agendamento</p>
+                        <p className="text-sm mt-2">Você não tem agendamentos para esta data</p>
                       </div>
                     ) : (
                       filteredAppointments.map((appointment) => (
@@ -581,9 +583,6 @@ export default function AppointmentsPage() {
                                 <div className="flex items-center space-x-1">
                                   <MapPin className="h-4 w-4" />
                                   <span className="font-medium">{appointment.location.name}</span>
-                                </div>
-                                <div className="flex items-center space-x-1">
-                                  <span className="font-medium">Barbeiro: {appointment.barber.name}</span>
                                 </div>
                               </div>
                             </div>
@@ -622,8 +621,8 @@ export default function AppointmentsPage() {
             <TabsContent value="week">
               <Card className="border border-gray-200 shadow-lg bg-white">
                 <CardHeader>
-                  <CardTitle className="text-black">Agendamentos da Semana</CardTitle>
-                  <CardDescription className="text-gray-600">Visão semanal dos agendamentos</CardDescription>
+                  <CardTitle className="text-black">Seus Agendamentos da Semana</CardTitle>
+                  <CardDescription className="text-gray-600">Visão semanal dos seus agendamentos</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <p className="text-center text-gray-500 py-8">Funcionalidade em desenvolvimento</p>
@@ -634,8 +633,8 @@ export default function AppointmentsPage() {
             <TabsContent value="month">
               <Card className="border border-gray-200 shadow-lg bg-white">
                 <CardHeader>
-                  <CardTitle className="text-black">Agendamentos do Mês</CardTitle>
-                  <CardDescription className="text-gray-600">Visão mensal dos agendamentos</CardDescription>
+                  <CardTitle className="text-black">Seus Agendamentos do Mês</CardTitle>
+                  <CardDescription className="text-gray-600">Visão mensal dos seus agendamentos</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <p className="text-center text-gray-500 py-8">Funcionalidade em desenvolvimento</p>
