@@ -22,8 +22,6 @@ export async function GET() {
       },
     })
 
-    console.log("Found barbers:", barbers.length)
-    console.log("First barber:", barbers[0])
 
     return NextResponse.json(barbers)
   } catch (error) {

@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Plus, Search, User, Phone, Edit, Trash2, Star, Crown, Calendar } from "lucide-react"
+import { Plus, Search, User, Phone, Edit, Trash2, Star, Crown, Calendar, AlertTriangle } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -21,16 +21,36 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { useApi, useMutation } from "@/hooks/use-api"
 import { clientsApi, plansApi, type Client, type Plan, type CreateClientData } from "@/lib/api"
 import { toast } from "sonner"
 
 export default function ClientsPage() {
   const [searchTerm, setSearchTerm] = useState("")
-  const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [selectedPlan, setSelectedPlan] = useState("all")
+  const [clientToDelete, setClientToDelete] = useState<string | null>(null)
+  const [editingClient, setEditingClient] = useState<Client | null>(null)
 
   const [newClient, setNewClient] = useState({
+    name: "",
+    phone: "",
+    email: "",
+    planId: "",
+  })
+
+  const [editClient, setEditClient] = useState({
     name: "",
     phone: "",
     email: "",
@@ -53,17 +73,33 @@ export default function ClientsPage() {
 
   const { data: plans, loading: plansLoading } = useApi<Plan[]>(() => plansApi.getAll(), [])
 
-  // Mutation for creating clients
+  // Mutations
   const { mutate: createClient, loading: creatingClient } = useMutation((data: CreateClientData) =>
     clientsApi.create(data),
   )
 
-  // Mutation for deleting clients
-  const { mutate: deleteClient } = useMutation((id: string) => clientsApi.delete(id))
+  const { mutate: updateClient, loading: updatingClient } = useMutation(({ id, data }: { id: string; data: any }) =>
+    fetch(`/api/clients/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    }).then((res) => {
+      if (!res.ok) throw new Error("Failed to update client")
+      return res.json()
+    }),
+  )
+
+  const { mutate: deleteClient, loading: deletingClient } = useMutation((id: string) =>
+    fetch(`/api/clients/${id}`, {
+      method: "DELETE",
+    }).then((res) => {
+      if (!res.ok) throw new Error("Failed to delete client")
+      return res.json()
+    }),
+  )
 
   const handleCreateClient = async () => {
     if (!newClient.name || !newClient.phone) {
-      // 👇 AJUSTADO
       toast.error("Erro", {
         description: "Nome e telefone são obrigatórios",
       })
@@ -83,7 +119,6 @@ export default function ClientsPage() {
 
     try {
       await createClient(clientData)
-      // 👇 AJUSTADO
       toast.success("Sucesso", {
         description: "Cliente cadastrado com sucesso!",
       })
@@ -93,12 +128,63 @@ export default function ClientsPage() {
         email: "",
         planId: "",
       })
-      setIsDialogOpen(false)
+      setIsCreateDialogOpen(false)
       refetchClients()
     } catch (error) {
-      // 👇 AJUSTADO
       toast.error("Erro", {
         description: "Falha ao cadastrar cliente. Verifique se o telefone já não está em uso.",
+      })
+    }
+  }
+
+  const handleEditClient = (client: Client) => {
+    setEditingClient(client)
+    setEditClient({
+      name: client.name,
+      phone: client.phone,
+      email: client.email || "",
+      planId: client.planId || "",
+    })
+    setIsEditDialogOpen(true)
+  }
+
+  const handleUpdateClient = async () => {
+    if (!editingClient) return
+
+    if (!editClient.name || !editClient.phone) {
+      toast.error("Erro", {
+        description: "Nome e telefone são obrigatórios",
+      })
+      return
+    }
+
+    const updateData = {
+      name: editClient.name,
+      phone: editClient.phone,
+      email: editClient.email || null,
+      planId: editClient.planId || null,
+      planStartDate:
+        editClient.planId && !editingClient.planId
+          ? new Date().toISOString().split("T")[0]
+          : editingClient.planStartDate,
+      planEndDate:
+        editClient.planId && !editingClient.planId
+          ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
+          : editingClient.planEndDate,
+      isActive: true,
+    }
+
+    try {
+      await updateClient({ id: editingClient.id, data: updateData })
+      toast.success("Sucesso", {
+        description: "Cliente atualizado com sucesso!",
+      })
+      setIsEditDialogOpen(false)
+      setEditingClient(null)
+      refetchClients()
+    } catch (error) {
+      toast.error("Erro", {
+        description: "Falha ao atualizar cliente. Verifique se o telefone já não está em uso.",
       })
     }
   }
@@ -106,13 +192,12 @@ export default function ClientsPage() {
   const handleDeleteClient = async (clientId: string) => {
     try {
       await deleteClient(clientId)
-      // 👇 AJUSTADO
       toast.success("Sucesso", {
         description: "Cliente removido com sucesso!",
       })
+      setClientToDelete(null)
       refetchClients()
     } catch (error) {
-      // 👇 AJUSTADO
       toast.error("Erro", {
         description: "Falha ao remover cliente.",
       })
@@ -125,14 +210,12 @@ export default function ClientsPage() {
 
   const getClientStats = () => {
     if (!clients) return { total: 0, withPlans: 0, premium: 0, revenue: 0 }
-
     const total = clients.length
     const withPlans = clients.filter((c) => c.plan && c.plan.name !== "Avulso").length
     const premium = clients.filter((c) => c.plan?.name === "Barbearia Premium").length
     const revenue = clients.reduce((sum, client) => {
       return sum + (client.plan ? Number(client.plan.price) : 0)
     }, 0)
-
     return { total, withPlans, premium, revenue }
   }
 
@@ -161,7 +244,6 @@ export default function ClientsPage() {
                 <p className="text-xs text-gray-500">Clientes cadastrados</p>
               </CardContent>
             </Card>
-
             <Card className="border border-gray-200 shadow-lg bg-white">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium text-gray-600">Com Planos</CardTitle>
@@ -172,7 +254,6 @@ export default function ClientsPage() {
                 <p className="text-xs text-gray-500">Assinantes ativos</p>
               </CardContent>
             </Card>
-
             <Card className="border border-gray-200 shadow-lg bg-white">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium text-gray-600">Premium</CardTitle>
@@ -183,7 +264,6 @@ export default function ClientsPage() {
                 <p className="text-xs text-gray-500">Clientes premium</p>
               </CardContent>
             </Card>
-
             <Card className="border border-gray-200 shadow-lg bg-white">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium text-gray-600">Receita Mensal</CardTitle>
@@ -215,7 +295,8 @@ export default function ClientsPage() {
                 </TabsTrigger>
               </TabsList>
 
-              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              {/* Dialog para Criar Cliente */}
+              <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
                 <DialogTrigger asChild>
                   <Button className="bg-black hover:bg-gray-800 text-white">
                     <Plus className="h-4 w-4 mr-2" />
@@ -308,6 +389,120 @@ export default function ClientsPage() {
                 </DialogContent>
               </Dialog>
             </div>
+
+            {/* Dialog para Editar Cliente */}
+            <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+              <DialogContent className="max-w-md bg-white border border-gray-200">
+                <DialogHeader>
+                  <DialogTitle className="text-black">Editar Cliente</DialogTitle>
+                  <DialogDescription className="text-gray-600">Atualize os dados do cliente</DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="editClientName" className="text-black">
+                      Nome Completo
+                    </Label>
+                    <Input
+                      id="editClientName"
+                      placeholder="Digite o nome do cliente"
+                      value={editClient.name}
+                      onChange={(e) => setEditClient({ ...editClient, name: e.target.value })}
+                      className="border-gray-300 focus:border-black"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="editClientPhone" className="text-black">
+                      Telefone
+                    </Label>
+                    <Input
+                      id="editClientPhone"
+                      placeholder="(35) 99999-9999"
+                      value={editClient.phone}
+                      onChange={(e) => setEditClient({ ...editClient, phone: e.target.value })}
+                      className="border-gray-300 focus:border-black"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="editClientEmail" className="text-black">
+                      Email
+                    </Label>
+                    <Input
+                      id="editClientEmail"
+                      type="email"
+                      placeholder="cliente@email.com"
+                      value={editClient.email}
+                      onChange={(e) => setEditClient({ ...editClient, email: e.target.value })}
+                      className="border-gray-300 focus:border-black"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="editPlan" className="text-black">
+                      Plano
+                    </Label>
+                    <Select
+                      value={editClient.planId}
+                      onValueChange={(value) => setEditClient({ ...editClient, planId: value })}
+                    >
+                      <SelectTrigger className="border-gray-300 focus:border-black">
+                        <SelectValue placeholder="Selecione o plano" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Sem plano (Avulso)</SelectItem>
+                        {plansLoading ? (
+                          <SelectItem value="loading" disabled>
+                            Carregando...
+                          </SelectItem>
+                        ) : (
+                          plans?.map((plan) => (
+                            <SelectItem key={plan.id} value={plan.id}>
+                              <div className="flex items-center justify-between w-full">
+                                <span>{plan.name}</span>
+                                {Number(plan.price) > 0 && (
+                                  <span className="text-sm text-gray-500 ml-2">R$ {Number(plan.price).toFixed(2)}</span>
+                                )}
+                              </div>
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <Button
+                  onClick={handleUpdateClient}
+                  className="w-full bg-black hover:bg-gray-800 text-white"
+                  disabled={updatingClient}
+                >
+                  {updatingClient ? "Atualizando..." : "Atualizar Cliente"}
+                </Button>
+              </DialogContent>
+            </Dialog>
+
+            {/* Alert Dialog para Confirmar Exclusão */}
+            <AlertDialog open={!!clientToDelete} onOpenChange={() => setClientToDelete(null)}>
+              <AlertDialogContent className="bg-white border border-gray-200">
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="flex items-center gap-2 text-black">
+                    <AlertTriangle className="h-5 w-5 text-red-500" />
+                    Confirmar Exclusão
+                  </AlertDialogTitle>
+                  <AlertDialogDescription className="text-gray-600">
+                    Tem certeza que deseja remover este cliente? Esta ação não pode ser desfeita. O cliente será
+                    desativado no sistema.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel className="border-gray-300">Cancelar</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => clientToDelete && handleDeleteClient(clientToDelete)}
+                    className="bg-red-600 hover:bg-red-700 text-white"
+                    disabled={deletingClient}
+                  >
+                    {deletingClient ? "Removendo..." : "Remover Cliente"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
 
             <TabsContent value="all" className="space-y-6">
               {/* Filtros */}
@@ -429,13 +624,18 @@ export default function ClientsPage() {
                                   </div>
                                 )}
                               </div>
-                              <Button variant="ghost" size="sm" className="text-gray-600 hover:text-black">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-gray-600 hover:text-black"
+                                onClick={() => handleEditClient(client)}
+                              >
                                 <Edit className="h-4 w-4" />
                               </Button>
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => handleDeleteClient(client.id)}
+                                onClick={() => setClientToDelete(client.id)}
                                 className="text-gray-600 hover:text-red-600"
                               >
                                 <Trash2 className="h-4 w-4" />

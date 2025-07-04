@@ -12,19 +12,20 @@ import { Scissors, User, Lock, MapPin } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 const locations = [
-  { id: "33c430c1-1652-4ee3-b4a1-00b141d9dd35", name: "Rua 13 - Ouro Fino" },
-  { id: "a5748ee0-bffc-41a0-9c74-46afc6468db2", name: "Avenida - Ouro Fino" },
-  { id: "b97c7d24-fff9-4ea8-9e4b-3d670b70e12d", name: "Inconfidentes" },
+  { id: "8cecb648-ad70-433a-9841-1717e2b0fac1", name: "Rua 13 - Ouro Fino" },
+  { id: "bf844af4-e283-4600-8241-29a5fead8f18", name: "Avenida - Ouro Fino" },
+  { id: "df88109a-0005-41f0-a7cc-feb19540d280", name: "Inconfidentes" },
 ]
 
+
 const barbers = [
-  { id: "16dae2fe-cb58-4dd4-a454-fdb352500538", name: "Bruno Souza" },
-  { id: "a7ad7f98-8107-49ea-b44c-317a6569c593", name: "Erick" },
-  { id: "c1f4c1d4-de40-417b-9e22-49d7db1fa2b3", name: "Ryan" },
-  { id: "a027418f-072e-4bfb-b83a-3873e14baeb8", name: "Carlos" },
-  { id: "9036779c-1967-4b46-83ae-49692a51d286", name: "Julio" },
-  { id: "231bd7d5-e407-4250-81f1-98bea95c372b", name: "Faguinho" },
-  { id: "e5a5ef77-7c77-445b-b412-88a4ae1237e2", name: "Joilton" },
+  { id: "25aad185-561b-4ec0-a570-a6d35d513868", name: "Bruno Souza" },
+  { id: "f9d29449-bec9-4499-83e8-3ce8b1f4078d", name: "Erick" },
+  { id: "e4541de6-7803-4474-9ed1-1ce6efbf591d", name: "Ryan" },
+  { id: "524995f1-9827-4fba-804f-e965c8425bc2", name: "Carlos" },
+  { id: "b6640820-5082-4a35-bf03-c9bb70ca280d", name: "Julio" },
+  { id: "4684fd88-1307-45a1-918c-cf74879d90c9", name: "Faguinho" },
+  { id: "400ab9f7-9cf1-48be-90e5-282cdcd7f874", name: "Joilton" },
 ]
 
 export default function LoginPage() {
