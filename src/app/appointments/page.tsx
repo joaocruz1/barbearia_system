@@ -5,14 +5,11 @@ import { SidebarProvider } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
 import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Plus, Search, Calendar, Clock, MapPin, Scissors, Star, Filter, CheckCircle, AlertCircle } from "lucide-react"
+import { Plus, ChevronLeft, ChevronRight, Scissors, Star, User } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -35,20 +32,30 @@ import {
   type Location,
   type CreateAppointmentData,
 } from "@/lib/api"
-import { toast } from "sonner" // 🎯 Importando toast do sonner
+import { toast } from "sonner"
+
+// Generate time slots from 8:00 to 20:00 in 10-minute intervals
+const generateTimeSlots = () => {
+  const slots = []
+  for (let hour = 8; hour < 20; hour++) {
+    for (let minute = 0; minute < 60; minute += 10) {
+      const timeString = `${hour.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")}`
+      slots.push(timeString)
+    }
+  }
+  return slots
+}
+
+const TIME_SLOTS = generateTimeSlots()
 
 export default function AppointmentsPage() {
-  const [searchTerm, setSearchTerm] = useState("")
-  const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0])
-  const [statusFilter, setStatusFilter] = useState("all")
-  const [locationFilter, setLocationFilter] = useState("all")
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [barberId, setBarberId] = useState<string | null>(null)
-  // ❌ Removendo a desestruturação do useToast, pois sonner é importado diretamente
-
   const [newAppointment, setNewAppointment] = useState({
     clientId: "",
     serviceId: "",
+    barberId: "",
     date: new Date().toISOString().split("T")[0],
     time: "",
     paymentMethod: "",
@@ -60,62 +67,93 @@ export default function AppointmentsPage() {
     setBarberId(storedBarberId)
   }, [])
 
-  // API calls - Filtrar APENAS pelos agendamentos do barbeiro logado
-  const { data: clients, loading: clientsLoading } = useApi<Client[]>(
-    () => clientsApi.getAll({ search: searchTerm }),
-    [searchTerm],
-  )
+  // API calls
+  const { data: clients, loading: clientsLoading } = useApi<Client[]>(() => clientsApi.getAll({}), [])
 
   const { data: services, loading: servicesLoading } = useApi<Service[]>(() => servicesApi.getAll(), [])
+
+  const { data: barbers } = useApi<Barber[]>(() => barbersApi.getAll(), [])
+
+  const { data: locations } = useApi<Location[]>(() => locationsApi.getAll(), [])
 
   const {
     data: appointments,
     loading: appointmentsLoading,
     refetch: refetchAppointments,
-  } = useApi<Appointment[]>(
-    () =>
-      appointmentsApi.getAll({
-        date: selectedDate,
-        barberId: barberId || undefined, // SEMPRE filtrar pelo barbeiro logado
-      }),
-    [selectedDate, barberId],
-  )
-
-  const { data: barbers } = useApi<Barber[]>(() => barbersApi.getAll(), [])
-  const { data: locations } = useApi<Location[]>(() => locationsApi.getAll(), [])
+  } = useApi<Appointment[]>(() => appointmentsApi.getAll({ date: selectedDate }), [selectedDate])
 
   // Mutation for creating appointments
   const { mutate: createAppointment, loading: creatingAppointment } = useMutation((data: CreateAppointmentData) =>
     appointmentsApi.create(data),
   )
 
-  const filteredAppointments =
-    appointments?.filter((appointment) => {
-      const matchesSearch =
-        appointment.client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        appointment.client.phone.includes(searchTerm)
+  // Date navigation
+  const navigateDate = (direction: "prev" | "next") => {
+    const currentDate = new Date(selectedDate)
+    const newDate = new Date(currentDate)
+    newDate.setDate(currentDate.getDate() + (direction === "next" ? 1 : -1))
+    setSelectedDate(newDate.toISOString().split("T")[0])
+  }
 
-      const matchesStatus = statusFilter === "all" || appointment.status === statusFilter
-      const matchesLocation = locationFilter === "all" || appointment.location.id === locationFilter
+  const goToToday = () => {
+    setSelectedDate(new Date().toISOString().split("T")[0])
+  }
 
-      return matchesSearch && matchesStatus && matchesLocation
-    }) || []
+  // Format date for display
+  const formatDisplayDate = (dateString: string) => {
+    const date = new Date(dateString)
+    const weekdays = [
+      "Domingo",
+      "Segunda-feira",
+      "Terça-feira",
+      "Quarta-feira",
+      "Quinta-feira",
+      "Sexta-feira",
+      "Sábado",
+    ]
+    const months = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
+
+    return `${weekdays[date.getDay()]}, ${date.getDate()} ${months[date.getMonth()]}. ${date.getFullYear()}`
+  }
+
+  // Get appointment for specific barber and time slot
+  const getAppointmentForSlot = (barberId: string, timeSlot: string) => {
+    return appointments?.find(
+      (appointment) =>
+        appointment.barberId === barberId && appointment.startTime <= timeSlot && appointment.endTime > timeSlot,
+    )
+  }
+
+  // Calculate appointment duration in slots
+  const getAppointmentDuration = (startTime: string, endTime: string) => {
+    const start = TIME_SLOTS.indexOf(startTime)
+    const end = TIME_SLOTS.indexOf(endTime)
+    return end - start
+  }
+
+  // Get appointment color based on service type
+  const getAppointmentColor = (service: string, status: string) => {
+    if (status === "cancelled") return "bg-red-200 border-red-300"
+    if (status === "completed") return "bg-blue-200 border-blue-300"
+
+    if (service.toLowerCase().includes("corte")) return "bg-green-200 border-green-300"
+    if (service.toLowerCase().includes("barba")) return "bg-yellow-200 border-yellow-300"
+    if (service.toLowerCase().includes("combo")) return "bg-purple-200 border-purple-300"
+    return "bg-orange-200 border-orange-300"
+  }
 
   const handleCreateAppointment = async () => {
-    if (!newAppointment.clientId || !newAppointment.serviceId || !newAppointment.time || !barberId) {
-      // 🎯 Usando toast.error do sonner
+    if (!newAppointment.clientId || !newAppointment.serviceId || !newAppointment.time || !newAppointment.barberId) {
       toast.error("Erro", {
         description: "Preencha todos os campos obrigatórios",
       })
       return
     }
 
-    // Validação para impedir agendamentos no passado
+    // Validation for past appointments
     const now = new Date()
     const selectedDateTime = new Date(`${newAppointment.date}T${newAppointment.time}`)
-
     if (selectedDateTime < now) {
-      // 🎯 Usando toast.error do sonner
       toast.error("Erro", {
         description: "Não é possível agendar para uma data/hora no passado",
       })
@@ -124,7 +162,6 @@ export default function AppointmentsPage() {
 
     const client = clients?.find((c) => c.id === newAppointment.clientId)
     const service = services?.find((s) => s.id === newAppointment.serviceId)
-
     if (!client || !service) return
 
     // Calculate end time
@@ -132,7 +169,6 @@ export default function AppointmentsPage() {
     const startTime = new Date()
     startTime.setHours(hours, minutes, 0, 0)
     const endTime = new Date(startTime.getTime() + service.durationMinutes * 60000)
-
     const endTimeString = `${endTime.getHours().toString().padStart(2, "0")}:${endTime.getMinutes().toString().padStart(2, "0")}`
 
     // Determine payment method based on client plan
@@ -143,21 +179,18 @@ export default function AppointmentsPage() {
           (client.plan.name === "Barbearia Premium" || client.plan.name === "Cabelo VIP")) ||
         (service.name.includes("Barba") &&
           (client.plan.name === "Barbearia Premium" || client.plan.name === "Barba VIP"))
-
       if (canUsePlan) {
         paymentMethod = "Plano"
       }
     }
 
-    // Mapear localidade do localStorage para ID do banco
     const currentLocation = localStorage.getItem("barberLocation")
-    // Use search for location directly rather than a fixed map
-    const locationObj = locations?.find((l) => l.name.toLowerCase().replace(/\s/g, '-') === currentLocation);
-    const locationId = locationObj?.id || locations?.[0]?.id; // Fallback to first location if not found
+    const locationObj = locations?.find((l) => l.name.toLowerCase().replace(/\s/g, "-") === currentLocation)
+    const locationId = locationObj?.id || locations?.[0]?.id
 
     const appointmentData: CreateAppointmentData = {
       clientId: newAppointment.clientId,
-      barberId: barberId,
+      barberId: newAppointment.barberId,
       locationId: locationId || "",
       serviceId: newAppointment.serviceId,
       appointmentDate: newAppointment.date,
@@ -170,13 +203,13 @@ export default function AppointmentsPage() {
 
     try {
       await createAppointment(appointmentData)
-      // 🎯 Usando toast.success do sonner
       toast.success("Sucesso", {
         description: "Agendamento criado com sucesso!",
       })
       setNewAppointment({
         clientId: "",
         serviceId: "",
+        barberId: "",
         date: new Date().toISOString().split("T")[0],
         time: "",
         paymentMethod: "",
@@ -185,63 +218,10 @@ export default function AppointmentsPage() {
       setIsDialogOpen(false)
       refetchAppointments()
     } catch (error) {
-      // 🎯 Usando toast.error do sonner
       toast.error("Erro", {
         description: "Falha ao criar agendamento. Verifique se o horário está disponível.",
       })
     }
-  }
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "confirmed":
-      case "scheduled":
-        return "bg-green-600 text-white"
-      case "waiting":
-        return "bg-yellow-600 text-white"
-      case "completed":
-        return "bg-blue-600 text-white"
-      case "cancelled":
-        return "bg-red-600 text-white"
-      default:
-        return "bg-gray-500 text-white"
-    }
-  }
-
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case "confirmed":
-      case "scheduled":
-        return "Confirmado"
-      case "waiting":
-        return "Aguardando"
-      case "completed":
-        return "Concluído"
-      case "cancelled":
-        return "Cancelado"
-      default:
-        return status
-    }
-  }
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case "confirmed":
-      case "scheduled":
-        return <CheckCircle className="h-3 w-3" />
-      case "waiting":
-        return <AlertCircle className="h-3 w-3" />
-      default:
-        return null
-    }
-  }
-
-  // Estatísticas rápidas - apenas dos agendamentos do barbeiro logado
-  const todayStats = {
-    total: filteredAppointments.length,
-    confirmed: filteredAppointments.filter((a) => a.status === "confirmed" || a.status === "scheduled").length,
-    waiting: filteredAppointments.filter((a) => a.status === "waiting").length,
-    completed: filteredAppointments.filter((a) => a.status === "completed").length,
   }
 
   return (
@@ -251,80 +231,31 @@ export default function AppointmentsPage() {
         <header className="flex h-16 shrink-0 items-center gap-2 border-b border-gray-200 px-4 bg-white">
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-2 h-4" />
-          <h1 className="text-lg font-semibold text-black">Meus Agendamentos</h1>
-        </header>
-
-        <div className="flex flex-1 flex-col gap-6 p-6 bg-gray-50">
-          {/* Estatísticas rápidas */}
-          <div className="grid gap-4 md:grid-cols-4">
-            <Card className="border border-gray-200 shadow-sm bg-white">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">Total</p>
-                    <p className="text-2xl font-bold text-black">{todayStats.total}</p>
-                  </div>
-                  <Calendar className="h-8 w-8 text-gray-400" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border border-gray-200 shadow-sm bg-white">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">Confirmados</p>
-                    <p className="text-2xl font-bold text-green-600">{todayStats.confirmed}</p>
-                  </div>
-                  <CheckCircle className="h-8 w-8 text-green-400" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border border-gray-200 shadow-sm bg-white">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">Aguardando</p>
-                    <p className="text-2xl font-bold text-yellow-600">{todayStats.waiting}</p>
-                  </div>
-                  <AlertCircle className="h-8 w-8 text-yellow-400" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border border-gray-200 shadow-sm bg-white">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">Concluídos</p>
-                    <p className="text-2xl font-bold text-blue-600">{todayStats.completed}</p>
-                  </div>
-                  <Scissors className="h-8 w-8 text-blue-400" />
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <Tabs defaultValue="today" className="w-full">
-            <div className="flex items-center justify-between mb-6">
-              <TabsList className="grid w-full max-w-md grid-cols-3 bg-white border border-gray-200">
-                <TabsTrigger value="today" className="data-[state=active]:bg-black data-[state=active]:text-white">
+          <div className="flex items-center justify-between w-full">
+            <div className="flex items-center gap-4">
+              <h1 className="text-lg font-semibold text-black">{formatDisplayDate(selectedDate)}</h1>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => navigateDate("prev")} className="h-8 w-8 p-0">
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" size="sm" onClick={goToToday} className="h-8 px-3 bg-transparent">
                   Hoje
-                </TabsTrigger>
-                <TabsTrigger value="week" className="data-[state=active]:bg-black data-[state=active]:text-white">
-                  Semana
-                </TabsTrigger>
-                <TabsTrigger value="month" className="data-[state=active]:bg-black data-[state=active]:text-white">
-                  Mês
-                </TabsTrigger>
-              </TabsList>
-
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => navigateDate("next")} className="h-8 w-8 p-0">
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" className="bg-white border-blue-200 text-blue-600 hover:bg-blue-50">
+                <Plus className="h-4 w-4 mr-2" />
+                Nova comanda de consumo
+              </Button>
               <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button className="bg-black hover:bg-gray-800 text-white">
+                  <Button className="bg-blue-600 hover:bg-blue-700 text-white">
                     <Plus className="h-4 w-4 mr-2" />
-                    Novo Agendamento
+                    Novo agendamento
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-md bg-white border border-gray-200">
@@ -335,6 +266,23 @@ export default function AppointmentsPage() {
                     </DialogDescription>
                   </DialogHeader>
                   <div className="grid gap-4 py-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="barber" className="text-black">
+                        Barbeiro *
+                      </Label>
+                      <Select onValueChange={(value) => setNewAppointment({ ...newAppointment, barberId: value })}>
+                        <SelectTrigger className="border-gray-300 focus:border-black">
+                          <SelectValue placeholder="Selecione o barbeiro" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {barbers?.map((barber) => (
+                            <SelectItem key={barber.id} value={barber.id}>
+                              {barber.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                     <div className="space-y-2">
                       <Label htmlFor="client" className="text-black">
                         Cliente *
@@ -363,7 +311,6 @@ export default function AppointmentsPage() {
                         </SelectContent>
                       </Select>
                     </div>
-
                     <div className="space-y-2">
                       <Label htmlFor="service" className="text-black">
                         Serviço *
@@ -392,7 +339,6 @@ export default function AppointmentsPage() {
                         </SelectContent>
                       </Select>
                     </div>
-
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="date" className="text-black">
@@ -420,7 +366,6 @@ export default function AppointmentsPage() {
                         />
                       </div>
                     </div>
-
                     <div className="space-y-2">
                       <Label htmlFor="payment" className="text-black">
                         Método de Pagamento
@@ -437,7 +382,6 @@ export default function AppointmentsPage() {
                         </SelectContent>
                       </Select>
                     </div>
-
                     <div className="space-y-2">
                       <Label htmlFor="notes" className="text-black">
                         Observações
@@ -453,7 +397,7 @@ export default function AppointmentsPage() {
                   </div>
                   <Button
                     onClick={handleCreateAppointment}
-                    className="w-full bg-black hover:bg-gray-800 text-white"
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white"
                     disabled={creatingAppointment}
                   >
                     {creatingAppointment ? "Criando..." : "Criar Agendamento"}
@@ -461,187 +405,103 @@ export default function AppointmentsPage() {
                 </DialogContent>
               </Dialog>
             </div>
+          </div>
+        </header>
 
-            <TabsContent value="today" className="space-y-6">
-              {/* Filtros */}
-              <Card className="border border-gray-200 shadow-lg bg-white">
-                <CardContent className="pt-6">
-                  <div className="flex flex-wrap items-center gap-4">
-                    <div className="flex items-center space-x-2 flex-1 min-w-64">
-                      <Search className="h-4 w-4 text-gray-500" />
-                      <Input
-                        placeholder="Buscar por cliente ou telefone..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="border-gray-300 focus:border-black"
-                      />
-                    </div>
-
-                    <div className="flex items-center space-x-2">
-                      <Calendar className="h-4 w-4 text-gray-500" />
-                      <Input
-                        type="date"
-                        value={selectedDate}
-                        onChange={(e) => setSelectedDate(e.target.value)}
-                        className="w-40 border-gray-300 focus:border-black"
-                      />
-                    </div>
-
-                    <Select value={statusFilter} onValueChange={setStatusFilter}>
-                      <SelectTrigger className="w-40 border-gray-300 focus:border-black">
-                        <Filter className="h-4 w-4 mr-2" />
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Todos Status</SelectItem>
-                        <SelectItem value="scheduled">Confirmados</SelectItem>
-                        <SelectItem value="waiting">Aguardando</SelectItem>
-                        <SelectItem value="completed">Concluídos</SelectItem>
-                        <SelectItem value="cancelled">Cancelados</SelectItem>
-                      </SelectContent>
-                    </Select>
-
-                    <Select value={locationFilter} onValueChange={setLocationFilter}>
-                      <SelectTrigger className="w-40 border-gray-300 focus:border-black">
-                        <MapPin className="h-4 w-4 mr-2" />
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Todas Localidades</SelectItem>
-                        {locations?.map((location) => (
-                          <SelectItem key={location.id} value={location.id}>
-                            {location.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Lista de agendamentos */}
-              <Card className="border border-gray-200 shadow-lg bg-white">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-black">
-                    <Calendar className="h-5 w-5" />
-                    Seus Agendamentos do Dia
-                  </CardTitle>
-                  <CardDescription className="text-gray-600">
-                    {appointmentsLoading
-                      ? "Carregando..."
-                      : `${filteredAppointments.length} agendamento(s) seus para ${new Date(selectedDate).toLocaleDateString("pt-BR")}`}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {appointmentsLoading ? (
-                      <div className="space-y-4">
-                        {[1, 2, 3].map((i) => (
-                          <div key={i} className="animate-pulse">
-                            <div className="flex items-center space-x-4 p-6 border border-gray-200 rounded-xl">
-                              <div className="w-16 h-16 bg-gray-200 rounded-full"></div>
-                              <div className="flex-1 space-y-2">
-                                <div className="h-5 bg-gray-200 rounded w-1/4"></div>
-                                <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-                                <div className="h-3 bg-gray-200 rounded w-1/3"></div>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : filteredAppointments.length === 0 ? (
-                      <div className="text-center py-12 text-gray-500">
-                        <Calendar className="h-16 w-16 mx-auto mb-4 opacity-50" />
-                        <p className="text-lg font-medium">Nenhum agendamento encontrado</p>
-                        <p className="text-sm mt-2">Você não tem agendamentos para esta data</p>
-                      </div>
-                    ) : (
-                      filteredAppointments.map((appointment) => (
-                        <div
-                          key={appointment.id}
-                          className="flex items-center justify-between p-6 border border-gray-200 rounded-xl hover:bg-gray-50 transition-all duration-200 hover:shadow-md"
-                        >
-                          <div className="flex items-center space-x-4">
-                            <div className="w-16 h-16 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center">
-                              <Scissors className="h-7 w-7 text-black" />
-                            </div>
-                            <div>
-                              <div className="flex items-center gap-2 mb-1">
-                                <p className="font-semibold text-black text-lg">{appointment.client.name}</p>
-                                {appointment.client.plan && appointment.client.plan.name !== "Avulso" && (
-                                  <Star className="h-4 w-4 text-yellow-500" />
-                                )}
-                              </div>
-                              <p className="text-gray-600 mb-2 font-medium">{appointment.service.name}</p>
-                              <div className="flex items-center space-x-4 text-sm text-gray-500">
-                                <div className="flex items-center space-x-1">
-                                  <Clock className="h-4 w-4" />
-                                  <span className="font-medium">
-                                    {appointment.startTime} - {appointment.endTime}
-                                  </span>
-                                </div>
-                                <div className="flex items-center space-x-1">
-                                  <MapPin className="h-4 w-4" />
-                                  <span className="font-medium">{appointment.location.name}</span>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="flex flex-col items-end space-y-2">
-                            <div className="flex items-center space-x-2">
-                              <Badge
-                                variant={appointment.client.plan?.name === "Avulso" ? "outline" : "default"}
-                                className={
-                                  appointment.client.plan?.name !== "Avulso"
-                                    ? "bg-black text-white"
-                                    : "border-gray-300 text-gray-700"
-                                }
-                              >
-                                {appointment.client.plan?.name || "Avulso"}
-                              </Badge>
-                              <Badge className={getStatusColor(appointment.status)}>
-                                <div className="flex items-center space-x-1">
-                                  {getStatusIcon(appointment.status)}
-                                  <span>{getStatusText(appointment.status)}</span>
-                                </div>
-                              </Badge>
-                            </div>
-                            <Badge variant="outline" className="border-gray-300 text-gray-700">
-                              {appointment.paymentMethod || "Não definido"}
-                            </Badge>
-                          </div>
+        <div className="flex-1 bg-gray-50 overflow-auto">
+          {appointmentsLoading ? (
+            <div className="flex items-center justify-center h-96">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                <p className="text-gray-500">Carregando agendamentos...</p>
+              </div>
+            </div>
+          ) : (
+            <div className="min-w-max">
+              {/* Header with barber names */}
+              <div className="sticky top-0 bg-white border-b border-gray-200 z-10">
+                <div className="flex">
+                  <div className="w-16 flex-shrink-0 border-r border-gray-200"></div>
+                  {barbers?.map((barber) => (
+                    <div key={barber.id} className="flex-1 min-w-64 p-4 border-r border-gray-200">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
+                          <User className="h-5 w-5 text-gray-600" />
                         </div>
-                      ))
-                    )}
+                        <div>
+                          <h3 className="font-medium text-gray-900">{barber.name}</h3>
+                          
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Time slots and appointments grid */}
+              <div className="flex">
+                {/* Time column */}
+                <div className="w-16 flex-shrink-0 border-r border-gray-200 bg-gray-50">
+                  {TIME_SLOTS.map((timeSlot) => (
+                    <div
+                      key={timeSlot}
+                      className="h-12 flex items-center justify-center text-xs text-gray-500 border-b border-gray-100"
+                    >
+                      {timeSlot}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Barber columns */}
+                {barbers?.map((barber) => (
+                  <div key={barber.id} className="flex-1 min-w-64 border-r border-gray-200">
+                    {TIME_SLOTS.map((timeSlot, index) => {
+                      const appointment = getAppointmentForSlot(barber.id, timeSlot)
+                      const isFirstSlotOfAppointment = appointment && appointment.startTime === timeSlot
+
+                      if (appointment && !isFirstSlotOfAppointment) {
+                        return <div key={timeSlot} className="h-12"></div>
+                      }
+
+                      return (
+                        <div key={timeSlot} className="h-12 border-b border-gray-100 relative">
+                          {appointment && isFirstSlotOfAppointment && (
+                            <div
+                              className={`absolute inset-x-1 rounded-lg p-2 border-l-4 ${getAppointmentColor(appointment.service.name, appointment.status)} shadow-sm`}
+                              style={{
+                                height: `${getAppointmentDuration(appointment.startTime, appointment.endTime) * 48 - 4}px`,
+                                zIndex: 1,
+                              }}
+                            >
+                              <div className="flex items-start gap-2 h-full">
+                                <div className="flex-shrink-0 flex gap-1">
+                                  {appointment.service.name.toLowerCase().includes("corte") && (
+                                    <Scissors className="h-3 w-3 text-gray-600" />
+                                  )}
+                                  {appointment.client.plan && appointment.client.plan.name !== "Avulso" && (
+                                    <Star className="h-3 w-3 text-yellow-600" />
+                                  )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-medium text-gray-900 text-sm truncate">
+                                    {appointment.client.name}
+                                  </p>
+                                  <p className="text-xs text-gray-600 truncate">{appointment.service.name}</p>
+                                  <p className="text-xs text-gray-500">
+                                    {appointment.startTime} - {appointment.endTime}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
                   </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="week">
-              <Card className="border border-gray-200 shadow-lg bg-white">
-                <CardHeader>
-                  <CardTitle className="text-black">Seus Agendamentos da Semana</CardTitle>
-                  <CardDescription className="text-gray-600">Visão semanal dos seus agendamentos</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-center text-gray-500 py-8">Funcionalidade em desenvolvimento</p>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="month">
-              <Card className="border border-gray-200 shadow-lg bg-white">
-                <CardHeader>
-                  <CardTitle className="text-black">Seus Agendamentos do Mês</CardTitle>
-                  <CardDescription className="text-gray-600">Visão mensal dos seus agendamentos</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-center text-gray-500 py-8">Funcionalidade em desenvolvimento</p>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </SidebarInset>
     </SidebarProvider>
