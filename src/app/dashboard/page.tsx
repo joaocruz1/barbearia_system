@@ -21,10 +21,21 @@ export default function DashboardPage() {
   const [selectedLocationFilter, setSelectedLocationFilter] = useState<string>("all")
   const router = useRouter()
 
+  const [barberName, setBarberName] = useState<string | null>(null)
+
   useEffect(() => {
     const storedBarberId = localStorage.getItem("barberId")
     const storedLocation = localStorage.getItem("barberLocation")
+    const storedBarberName = localStorage.getItem("barberName")
+    
+    console.log("Dashboard - Dados do localStorage:", {
+      barberId: storedBarberId,
+      location: storedLocation,
+      barberName: storedBarberName
+    })
+    
     if (!storedBarberId || !storedLocation) {
+      console.log("Dashboard - Dados faltando, redirecionando para login")
       router.push("/")
       // Adicionando um toast informativo se o usuário for redirecionado
       toast.info("Acesso Restrito", {
@@ -32,10 +43,21 @@ export default function DashboardPage() {
         duration: 3000,
       });
     } else {
+      console.log("Dashboard - Dados encontrados, configurando estado")
       setBarberId(storedBarberId)
       setLocation(storedLocation)
+      setBarberName(storedBarberName)
     }
   }, [router])
+
+  // Debug: useEffect para monitorar mudanças nos estados
+  useEffect(() => {
+    console.log("Dashboard - Estados atualizados:", {
+      barberId,
+      location,
+      barberName
+    })
+  }, [barberId, location, barberName])
 
   // Fetch dashboard stats APENAS do barbeiro logado
   const {
@@ -59,6 +81,7 @@ export default function DashboardPage() {
   const { data: locations } = useApi<Location[]>(() => locationsApi.getAll(), [])
 
   if (!barberId || !location) {
+    console.log("Dashboard - Renderizando loading, dados:", { barberId, location, barberName })
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
@@ -87,18 +110,7 @@ export default function DashboardPage() {
     )
   }
 
-  const getBarberName = (id: string) => {
-    const names: { [key: string]: string } = {
-      bruno: "Bruno Souza",
-      erick: "Erick",
-      ryan: "Ryan",
-      carlos: "Carlos",
-      julio: "Julio",
-      faguinho: "Faguinho",
-      joilton: "Joilton",
-    }
-    return names[id] || id
-  }
+
 
   const getLocationName = (id: string) => {
     const names: { [key: string]: string } = {
@@ -116,6 +128,9 @@ export default function DashboardPage() {
       return appointment.location.id === selectedLocationFilter
     }) || []
 
+  // Log antes da renderização
+  console.log("Dashboard - Renderizando com dados:", { barberId, location, barberName })
+
   return (
     <SidebarProvider>
       <AppSidebar />
@@ -124,10 +139,16 @@ export default function DashboardPage() {
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-2 h-4" />
           <div className="flex items-center gap-2">
-            <span className="text-lg font-semibold text-black">Olá, {getBarberName(barberId)}!</span>
+            <span className="text-lg font-semibold text-black">
+              Olá, {barberName || "Barbeiro"}!
+            </span>
             <Badge variant="outline" className="border-gray-300 text-gray-700">
               {getLocationName(location)}
             </Badge>
+          </div>
+          {/* Debug info */}
+          <div className="ml-auto text-xs text-gray-400">
+            ID: {barberId?.substring(0, 8)}... | Nome: {barberName || "N/A"}
           </div>
         </header>
 

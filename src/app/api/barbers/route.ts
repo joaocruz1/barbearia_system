@@ -22,7 +22,6 @@ export async function GET() {
       },
     })
 
-
     return NextResponse.json(barbers)
   } catch (error) {
     console.error("Error fetching barbers:", error)

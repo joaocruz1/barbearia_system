@@ -28,6 +28,9 @@ model Barber {
   name      String   @db.VarChar(100)
   phone     String?  @db.VarChar(20)
   email     String?  @db.VarChar(100)
+  password  String?  @db.VarChar(255) // Hash da senha usando bcrypt
+  role      String   @default("funcionario") @db.VarChar(20) // admin, funcionario
+  isActive  Boolean  @default(true) @map("is_active")
   createdAt DateTime @default(now()) @map("created_at")
 
   // Relations

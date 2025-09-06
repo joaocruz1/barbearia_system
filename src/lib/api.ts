@@ -130,12 +130,16 @@ export const servicesApi = {
 export const appointmentsApi = {
   getAll: (params?: {
     date?: string
+    startDate?: string
+    endDate?: string
     barberId?: string
     locationId?: string
     status?: string
   }) => {
     const searchParams = new URLSearchParams()
     if (params?.date) searchParams.set("date", params.date)
+    if (params?.startDate) searchParams.set("startDate", params.startDate)
+    if (params?.endDate) searchParams.set("endDate", params.endDate)
     if (params?.barberId) searchParams.set("barberId", params.barberId)
     if (params?.locationId) searchParams.set("locationId", params.locationId)
     if (params?.status) searchParams.set("status", params.status)
@@ -357,6 +361,7 @@ export interface CreateAppointmentData {
   endTime: string
   paymentMethod?: string
   paymentStatus?: string
+  status?: string
   notes?: string
 }
 

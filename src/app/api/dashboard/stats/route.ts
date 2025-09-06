@@ -8,6 +8,8 @@ export async function GET(request: NextRequest) {
     const barberId = searchParams.get("barberId")
     const date = searchParams.get("date") || new Date().toISOString().split("T")[0]
 
+    console.log("Dashboard Stats - Parâmetros:", { barberId, date })
+
     const where: any = {
       appointmentDate: new Date(date),
     }
@@ -17,7 +19,10 @@ export async function GET(request: NextRequest) {
       where.barberId = barberId
     }
 
+    console.log("Dashboard Stats - Where clause:", where)
+
     // Agendamentos do dia
+    console.log("Dashboard Stats - Buscando agendamentos...")
     const todayAppointments = await prisma.appointment.findMany({
       where,
       include: {
@@ -32,6 +37,7 @@ export async function GET(request: NextRequest) {
       },
       orderBy: [{ startTime: "asc" }],
     })
+    console.log("Dashboard Stats - Agendamentos encontrados:", todayAppointments.length)
 
     // Receita do dia (apenas serviços avulsos)
     const todayRevenue = todayAppointments
@@ -72,7 +78,7 @@ export async function GET(request: NextRequest) {
       0,
     )
 
-    return NextResponse.json({
+    const response = {
       today: {
         appointments: todayAppointments.length,
         revenue: todayRevenue,
@@ -85,7 +91,10 @@ export async function GET(request: NextRequest) {
         monthlyPlanRevenue,
       },
       appointments: todayAppointments,
-    })
+    }
+
+    console.log("Dashboard Stats - Resposta:", response)
+    return NextResponse.json(response)
   } catch (error) {
     console.error("Error fetching dashboard stats:", error)
     return NextResponse.json({ error: "Failed to fetch dashboard stats" }, { status: 500 })

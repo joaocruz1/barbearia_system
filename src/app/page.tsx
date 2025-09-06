@@ -39,15 +39,50 @@ export default function LoginPage() {
     e.preventDefault()
     setIsLoading(true)
 
-    // Simular autenticação
-    setTimeout(() => {
-      if (barberId && password && location) {
-        localStorage.setItem("barberId", barberId)
-        localStorage.setItem("barberLocation", location)
-        router.push("/dashboard")
+    try {
+      console.log("Tentando fazer login com:", { barberId, password: "***", locationId: location })
+      
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          barberId,
+          password,
+          locationId: location,
+        }),
+      })
+
+      console.log("Response status:", response.status)
+      const data = await response.json()
+      console.log("Response data:", data)
+
+      if (!response.ok) {
+        // Mostrar erro de autenticação
+        alert(data.error || "Erro ao fazer login")
+        setIsLoading(false)
+        return
       }
+
+      // Login bem-sucedido
+      console.log("Login bem-sucedido, salvando dados...")
+      localStorage.setItem("barberId", barberId)
+      localStorage.setItem("barberLocation", location)
+      localStorage.setItem("barberName", data.barber.name)
+      
+      console.log("Redirecionando para dashboard...")
+      
+      // Adicionar um pequeno delay para garantir que o localStorage foi salvo
+      setTimeout(() => {
+        router.push("/dashboard")
+      }, 100)
+    } catch (error) {
+      console.error("Erro no login:", error)
+      alert("Erro de conexão. Tente novamente.")
+    } finally {
       setIsLoading(false)
-    }, 1000)
+    }
   }
 
   return (

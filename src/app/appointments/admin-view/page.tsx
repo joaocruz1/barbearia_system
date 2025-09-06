@@ -25,6 +25,7 @@ import {
   Eye,
   Calendar,
   Clock,
+  ArrowLeft,
 } from "lucide-react"
 import { AppointmentCalendar } from "@/components/appointment-calendar"
 import {
@@ -341,11 +342,27 @@ export default function AppointmentsPage() {
           <Separator orientation="vertical" className="mr-2 h-6" />
 
           <div className="flex items-center justify-between w-full">
-            {/* Left section - Date and navigation */}
+            {/* Left section - Back button, date and navigation */}
             <div className="flex items-center gap-6">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => router.push("/appointments")}
+                className="h-9 px-3 text-muted-foreground hover:text-foreground"
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Voltar
+              </Button>
+
               <div className="flex items-center gap-3">
                 <Calendar className="h-5 w-5 text-primary" />
-                <h1 className="text-xl font-semibold text-foreground">{formatDisplayDate(weekDates[2])}</h1>
+                <div>
+                  <h1 className="text-xl font-semibold text-foreground">{formatDisplayDate(weekDates[2])}</h1>
+                  <Badge variant="secondary" className="bg-accent text-accent-foreground text-xs">
+                    <Users className="h-3 w-3 mr-1" />
+                    Visão Administrativa
+                  </Badge>
+                </div>
               </div>
 
               <div className="flex items-center gap-2 bg-muted rounded-lg p-1">
@@ -385,19 +402,6 @@ export default function AppointmentsPage() {
                   Semana
                 </Badge>
               </div>
-
-              {/* Admin view toggle */}
-              {isAdmin && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => router.push("/appointments/admin-view")}
-                  className="h-9 px-4 border-primary text-primary hover:bg-primary hover:text-primary-foreground"
-                >
-                  <Users className="h-4 w-4 mr-2" />
-                  Visão Completa
-                </Button>
-              )}
 
               {/* Filter section */}
               <div className="flex items-center gap-2 bg-muted rounded-lg p-2">

@@ -6,6 +6,8 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const date = searchParams.get("date")
+    const startDate = searchParams.get("startDate")
+    const endDate = searchParams.get("endDate")
     const barberId = searchParams.get("barberId")
     const locationId = searchParams.get("locationId")
     const status = searchParams.get("status")
@@ -14,6 +16,11 @@ export async function GET(request: NextRequest) {
 
     if (date) {
       where.appointmentDate = new Date(date)
+    } else if (startDate && endDate) {
+      where.appointmentDate = {
+        gte: new Date(startDate),
+        lte: new Date(endDate),
+      }
     }
 
     if (barberId) {
@@ -43,6 +50,9 @@ export async function GET(request: NextRequest) {
       orderBy: [{ appointmentDate: "asc" }, { startTime: "asc" }],
     })
 
+    console.log("Agendamentos encontrados:", appointments.length)
+    console.log("Primeiro agendamento:", appointments[0])
+
     return NextResponse.json(appointments)
   } catch (error) {
     console.error("Error fetching appointments:", error)
@@ -64,6 +74,7 @@ export async function POST(request: NextRequest) {
       endTime,
       paymentMethod,
       paymentStatus,
+      status,
       notes,
     } = body
 
@@ -103,6 +114,7 @@ export async function POST(request: NextRequest) {
         endTime,
         paymentMethod,
         paymentStatus: paymentStatus || "pending",
+        status: status || "confirmed",
         notes,
       },
       include: {
