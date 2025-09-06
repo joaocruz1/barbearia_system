@@ -1,28 +1,32 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { prisma } from "@/lib/prisma"
+import { type NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 
 // GET /api/dashboard/stats - Estatísticas do dashboard
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url)
-    const barberId = searchParams.get("barberId")
-    const date = searchParams.get("date") || new Date().toISOString().split("T")[0]
+    const { searchParams } = new URL(request.url);
+    const barberId = searchParams.get("barberId");
+    const date =
+      searchParams.get("date") || new Date().toISOString().split("T")[0];
 
-    console.log("Dashboard Stats - Parâmetros:", { barberId, date })
+    console.log("Dashboard Stats - Parâmetros:", { barberId, date });
 
     const where: any = {
-      appointmentDate: new Date(date),
-    }
+      appointmentDate: (() => {
+        const [year, month, day] = date.split("-").map(Number);
+        return new Date(year, month - 1, day);
+      })(),
+    };
 
     // SEMPRE filtrar pelo barbeiro quando fornecido
     if (barberId) {
-      where.barberId = barberId
+      where.barberId = barberId;
     }
 
-    console.log("Dashboard Stats - Where clause:", where)
+    console.log("Dashboard Stats - Where clause:", where);
 
     // Agendamentos do dia
-    console.log("Dashboard Stats - Buscando agendamentos...")
+    console.log("Dashboard Stats - Buscando agendamentos...");
     const todayAppointments = await prisma.appointment.findMany({
       where,
       include: {
@@ -36,32 +40,40 @@ export async function GET(request: NextRequest) {
         location: true,
       },
       orderBy: [{ startTime: "asc" }],
-    })
-    console.log("Dashboard Stats - Agendamentos encontrados:", todayAppointments.length)
+    });
+    console.log(
+      "Dashboard Stats - Agendamentos encontrados:",
+      todayAppointments.length
+    );
 
     // Receita do dia (apenas serviços avulsos)
     const todayRevenue = todayAppointments
       .filter((apt) => apt.paymentMethod !== "Plano")
-      .reduce((total, apt) => total + Number(apt.service.price), 0)
+      .reduce((total, apt) => total + Number(apt.service.price), 0);
 
     // Clientes VIP do dia
-    const vipClients = todayAppointments.filter((apt) => apt.client.plan && apt.client.plan.name !== "Avulso").length
+    const vipClients = todayAppointments.filter(
+      (apt) => apt.client.plan && apt.client.plan.name !== "Avulso"
+    ).length;
 
     // Taxa de ocupação (baseada nos agendamentos vs slots disponíveis)
-    const totalSlots = 10 // Assumindo 10 slots por dia por barbeiro
-    const occupancyRate = Math.min((todayAppointments.length / totalSlots) * 100, 100)
+    const totalSlots = 10; // Assumindo 10 slots por dia por barbeiro
+    const occupancyRate = Math.min(
+      (todayAppointments.length / totalSlots) * 100,
+      100
+    );
 
     // Estatísticas gerais
     const totalClients = await prisma.client.count({
       where: { isActive: true },
-    })
+    });
 
     const totalClientsWithPlans = await prisma.client.count({
       where: {
         isActive: true,
         planId: { not: null },
       },
-    })
+    });
 
     const monthlyRevenue = await prisma.client.findMany({
       where: {
@@ -71,12 +83,12 @@ export async function GET(request: NextRequest) {
       include: {
         plan: true,
       },
-    })
+    });
 
     const monthlyPlanRevenue = monthlyRevenue.reduce(
       (total, client) => total + (client.plan ? Number(client.plan.price) : 0),
-      0,
-    )
+      0
+    );
 
     const response = {
       today: {
@@ -91,12 +103,15 @@ export async function GET(request: NextRequest) {
         monthlyPlanRevenue,
       },
       appointments: todayAppointments,
-    }
+    };
 
-    console.log("Dashboard Stats - Resposta:", response)
-    return NextResponse.json(response)
+    console.log("Dashboard Stats - Resposta:", response);
+    return NextResponse.json(response);
   } catch (error) {
-    console.error("Error fetching dashboard stats:", error)
-    return NextResponse.json({ error: "Failed to fetch dashboard stats" }, { status: 500 })
+    console.error("Error fetching dashboard stats:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch dashboard stats" },
+      { status: 500 }
+    );
   }
 }
