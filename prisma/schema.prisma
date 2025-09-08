@@ -82,6 +82,7 @@ model Client {
   planEndDate   DateTime? @map("plan_end_date") @db.Date
   isActive      Boolean   @default(true) @map("is_active")
   createdAt     DateTime  @default(now()) @map("created_at")
+  plan_status   String    @default("not_plan") @db.VarChar(20) // pending, paid, not_plan
 
   // Relations
   plan         Plan?         @relation(fields: [planId], references: [id])

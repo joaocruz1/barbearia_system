@@ -9,7 +9,7 @@ interface UseApiState<T> {
 }
 
 export function useApi<T>(
-  apiCall: () => Promise<T>,
+  apiCall: (() => Promise<T>) | null,
   dependencies: any[] = []
 ): UseApiState<T> & { refetch: () => Promise<void> } {
   const [state, setState] = useState<UseApiState<T>>({
@@ -19,6 +19,11 @@ export function useApi<T>(
   });
 
   const fetchData = async () => {
+    if (!apiCall) {
+      setState({ data: null, loading: false, error: null });
+      return;
+    }
+
     setState((prev) => ({ ...prev, loading: true, error: null }));
 
     try {

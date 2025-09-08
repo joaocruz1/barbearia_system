@@ -169,6 +169,11 @@ export const appointmentsApi = {
     apiRequest<void>(`/appointments/${id}`, {
       method: "PATCH",
     }),
+  complete: (id: string) =>
+    apiRequest<Appointment>(`/appointments/${id}`, {
+      method: "PUT",
+      body: JSON.stringify({ status: "completed" }),
+    }),
 };
 
 // Dashboard API
@@ -243,6 +248,7 @@ export interface Client {
   planEndDate?: string;
   isActive: boolean;
   createdAt: string;
+  plan_status: string; // pending, paid, not_plan
   plan?: Plan;
   _count?: {
     appointments: number;

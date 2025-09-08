@@ -1,6 +1,6 @@
 "use client"
 
-import { Calendar, Home, Users, LogOut, Scissors, MapPin, Crown, Lock, Settings } from "lucide-react"
+import { Calendar, Home, Users, LogOut, Scissors, MapPin, Crown, Lock, Settings, DollarSign } from "lucide-react"
 import Link from "next/link"
 import { useRouter, usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
@@ -60,6 +60,12 @@ const menuItems = [
     title: "Usuários",
     url: "/users",
     icon: Users,
+    adminOnly: true,
+  },
+  {
+    title: "Caixa",
+    url: "/cash-flow",
+    icon: DollarSign,
     adminOnly: true,
   },
 ]

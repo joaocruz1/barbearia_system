@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Plus, Search, User, Phone, Edit, Trash2, Star, Crown, Calendar, AlertTriangle } from "lucide-react"
+import { Plus, Search, User, Phone, Edit, Trash2, Star, Crown, Calendar, AlertTriangle, CreditCard, CheckCircle, Clock, RefreshCw } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -42,12 +42,14 @@ export default function ClientsPage() {
   const [selectedPlan, setSelectedPlan] = useState("all")
   const [clientToDelete, setClientToDelete] = useState<string | null>(null)
   const [editingClient, setEditingClient] = useState<Client | null>(null)
+  const [activeTab, setActiveTab] = useState("all")
 
   const [newClient, setNewClient] = useState({
     name: "",
     phone: "",
     email: "",
     planId: "",
+    planStartDate: "",
   })
 
   const [editClient, setEditClient] = useState({
@@ -55,7 +57,60 @@ export default function ClientsPage() {
     phone: "",
     email: "",
     planId: "",
+    planStartDate: "",
   })
+
+  // Função auxiliar para formatar datas
+  const formatDate = (dateString: string | null | undefined): string => {
+    if (!dateString || dateString === null || dateString === undefined) {
+      return "Não definido"
+    }
+    
+    try {
+      // Usar uma abordagem mais robusta para evitar problemas de timezone
+      // Dividir a string de data em partes e criar a data localmente
+      const dateParts = dateString.split('T')[0].split('-') // Remove horário se existir e divide por '-'
+      if (dateParts.length === 3) {
+        const year = parseInt(dateParts[0])
+        const month = parseInt(dateParts[1]) - 1 // Mês é 0-indexado
+        const day = parseInt(dateParts[2])
+        
+        const localDate = new Date(year, month, day)
+        const result = localDate.toLocaleDateString("pt-BR")
+        return result
+      }
+      
+      // Fallback para o método anterior
+      const result = new Date(dateString + 'T00:00:00').toLocaleDateString("pt-BR")
+      return result
+    } catch (error) {
+      console.error('Error formatting date:', dateString, error)
+      return "Data inválida"
+    }
+  }
+
+  // Função para filtrar clientes baseado na aba ativa
+  const getFilteredClients = (clients: Client[]): Client[] => {
+    if (!clients) return []
+    
+    switch (activeTab) {
+      case "premium":
+        return clients.filter(client => 
+          client.plan?.name === "Barbearia Premium"
+        )
+      case "vip":
+        return clients.filter(client => 
+          client.plan?.name.includes("VIP")
+        )
+      case "avulso":
+        return clients.filter(client => 
+          !client.plan || client.plan.name === "Avulso" || client.plan_status === "not_plan"
+        )
+      case "all":
+      default:
+        return clients
+    }
+  }
 
   // API calls
   const {
@@ -106,27 +161,53 @@ export default function ClientsPage() {
       return
     }
 
+    // Determinar data de início (hoje se não preenchida)
+    const startDate = newClient.planStartDate || new Date().toISOString().split("T")[0]
+    
+    // Calcular data de fim (sempre 30 dias depois)
+    const startDateObj = new Date(startDate)
+    const selectedPlan = plans?.find(p => p.id === newClient.planId)
+    const isVipPlan = selectedPlan?.name.includes("VIP")
+    
+    const endDate = new Date(startDateObj)
+    endDate.setDate(endDate.getDate() + 30) // Sempre 30 dias (1 mês)
+
     const clientData: CreateClientData = {
       name: newClient.name,
       phone: newClient.phone,
       email: newClient.email || undefined,
       planId: newClient.planId || undefined,
-      planStartDate: newClient.planId ? new Date().toISOString().split("T")[0] : undefined,
-      planEndDate: newClient.planId
-        ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
-        : undefined,
+      planStartDate: newClient.planId ? startDate : undefined,
+      planEndDate: newClient.planId ? endDate.toISOString().split("T")[0] : undefined,
     }
 
     try {
-      await createClient(clientData)
-      toast.success("Sucesso", {
-        description: "Cliente cadastrado com sucesso!",
-      })
+      const createdClient = await createClient(clientData)
+      
+      // Verificar se é plano VIP para mostrar opção de pagamento
+      if (isVipPlan) {
+        toast.success("Cliente VIP cadastrado!", {
+          description: "Cliente cadastrado com sucesso. Deseja gerar link de pagamento?",
+          action: {
+            label: "Gerar Pagamento",
+            onClick: () => {
+              // Simular geração de link de pagamento para novo cliente VIP
+              generatePaymentLinkForNewClient(createdClient, selectedPlan)
+            },
+          },
+        })
+      } else {
+        toast.success("Sucesso", {
+          description: "Cliente cadastrado com sucesso!",
+        })
+      }
+      
       setNewClient({
         name: "",
         phone: "",
         email: "",
         planId: "",
+        planStartDate: "",
       })
       setIsCreateDialogOpen(false)
       refetchClients()
@@ -144,6 +225,7 @@ export default function ClientsPage() {
       phone: client.phone,
       email: client.email || "",
       planId: client.planId || "",
+      planStartDate: client.planStartDate ? new Date(client.planStartDate).toISOString().split("T")[0] : "",
     })
     setIsEditDialogOpen(true)
   }
@@ -158,27 +240,56 @@ export default function ClientsPage() {
       return
     }
 
+    // Verificar se está mudando para um plano VIP
+    const selectedPlan = plans?.find(p => p.id === editClient.planId)
+    const isVipPlan = selectedPlan?.name.includes("VIP")
+    const wasChangingToVip = !editingClient.planId && editClient.planId && isVipPlan
+
+    // Determinar data de início
+    let startDate = editClient.planStartDate
+    if (!startDate && editClient.planId) {
+      startDate = new Date().toISOString().split("T")[0] // Usar hoje se não preenchida
+    }
+
+    // Calcular data de fim se necessário (sempre 30 dias)
+    let endDate = editingClient.planEndDate
+    if (editClient.planId && startDate) {
+      const startDateObj = new Date(startDate)
+      const endDateObj = new Date(startDateObj)
+      endDateObj.setDate(endDateObj.getDate() + 30) // Sempre 30 dias (1 mês)
+      endDate = endDateObj.toISOString().split("T")[0]
+    }
+
     const updateData = {
       name: editClient.name,
       phone: editClient.phone,
       email: editClient.email || null,
       planId: editClient.planId || null,
-      planStartDate:
-        editClient.planId && !editingClient.planId
-          ? new Date().toISOString().split("T")[0]
-          : editingClient.planStartDate,
-      planEndDate:
-        editClient.planId && !editingClient.planId
-          ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
-          : editingClient.planEndDate,
+      planStartDate: editClient.planId ? startDate : null,
+      planEndDate: editClient.planId ? endDate : null,
       isActive: true,
     }
 
     try {
-      await updateClient({ id: editingClient.id, data: updateData })
-      toast.success("Sucesso", {
-        description: "Cliente atualizado com sucesso!",
-      })
+      const updatedClient = await updateClient({ id: editingClient.id, data: updateData })
+      
+      // Se mudou para VIP, mostrar opção de pagamento
+      if (wasChangingToVip) {
+        toast.success("Cliente atualizado para VIP!", {
+          description: "Cliente atualizado com sucesso. Deseja gerar link de pagamento?",
+          action: {
+            label: "Gerar Pagamento",
+            onClick: () => {
+              generatePaymentLinkForNewClient(updatedClient, selectedPlan)
+            },
+          },
+        })
+      } else {
+        toast.success("Sucesso", {
+          description: "Cliente atualizado com sucesso!",
+        })
+      }
+      
       setIsEditDialogOpen(false)
       setEditingClient(null)
       refetchClients()
@@ -217,6 +328,149 @@ export default function ClientsPage() {
       return sum + (client.plan ? Number(client.plan.price) : 0)
     }, 0)
     return { total, withPlans, premium, revenue }
+  }
+
+  // Função para verificar status de pagamento
+  const getPaymentStatus = (client: Client) => {
+    if (!client.plan || client.plan.name === "Avulso") return null
+    
+    // Verificar se a data de fim do plano já passou
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    
+    if (client.planEndDate) {
+      const endDate = new Date(client.planEndDate)
+      endDate.setHours(0, 0, 0, 0)
+      
+      // Se a data de fim já passou, forçar status "pending"
+      if (today > endDate) {
+        return { status: "pending", label: "Pendente de pagamento", color: "red" }
+      }
+    }
+    
+    // Usar o campo plan_status do banco de dados
+    switch (client.plan_status) {
+      case "paid":
+        return { status: "paid", label: "Pago em dia", color: "green" }
+      case "pending":
+        return { status: "pending", label: "Pendente de pagamento", color: "red" }
+      case "not_plan":
+        return { status: "not_plan", label: "Sem plano", color: "gray" }
+      default:
+        return { status: "unknown", label: "Status desconhecido", color: "gray" }
+    }
+  }
+
+  // Função para gerar link de pagamento
+  const generatePaymentLink = async (client: Client) => {
+    try {
+      const response = await fetch(`/api/clients/${client.id}/payment-link`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || "Falha ao gerar link de pagamento")
+      }
+
+      toast.success("Link de pagamento gerado", {
+        description: `Link: ${data.data.paymentLink}`,
+        action: {
+          label: "Copiar",
+          onClick: () => {
+            navigator.clipboard.writeText(data.data.paymentLink)
+            toast.success("Link copiado para a área de transferência")
+          },
+        },
+      })
+    } catch (error) {
+      toast.error("Erro", {
+        description: error instanceof Error ? error.message : "Falha ao gerar link de pagamento",
+      })
+    }
+  }
+
+  // Função para marcar plano como pago manualmente
+  const markPlanAsPaid = async (client: Client) => {
+    try {
+      const response = await fetch(`/api/clients/${client.id}/mark-paid`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Falha ao marcar como pago")
+      }
+
+      toast.success("Plano marcado como pago!", {
+        description: `O plano de ${client.name} foi marcado como pago com sucesso.`,
+      })
+
+      // Recarregar a lista de clientes
+      refetchClients()
+    } catch (error) {
+      console.error("Error marking plan as paid:", error)
+      toast.error("Erro", {
+        description: error instanceof Error ? error.message : "Falha ao marcar plano como pago",
+      })
+    }
+  }
+
+  // Função para atualizar status baseado em datas
+  const updateClientStatuses = async () => {
+    try {
+      const response = await fetch("/api/clients/update-status", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || "Falha ao atualizar status")
+      }
+
+      toast.success("Status atualizados", {
+        description: `${data.updatedCount} cliente(s) tiveram o status atualizado`,
+      })
+
+      // Recarregar a lista de clientes
+      refetchClients()
+    } catch (error) {
+      toast.error("Erro", {
+        description: error instanceof Error ? error.message : "Falha ao atualizar status",
+      })
+    }
+  }
+
+  // Função para gerar link de pagamento para novo cliente VIP
+  const generatePaymentLinkForNewClient = async (client: Client, plan: Plan | undefined) => {
+    try {
+      // Simular geração de link de pagamento para novo cliente
+      const paymentLink = `https://pagamento.barbearia.com/pay/${client.id}?amount=${Number(plan?.price || 0)}&plan=${plan?.name}`
+      
+      toast.success("Link de pagamento gerado", {
+        description: `Link: ${paymentLink}`,
+        action: {
+          label: "Copiar",
+          onClick: () => {
+            navigator.clipboard.writeText(paymentLink)
+            toast.success("Link copiado para a área de transferência")
+          },
+        },
+      })
+    } catch (error) {
+      toast.error("Erro", {
+        description: "Falha ao gerar link de pagamento",
+      })
+    }
   }
 
   const stats = getClientStats()
@@ -278,7 +532,7 @@ export default function ClientsPage() {
             </Card>
           </div>
 
-          <Tabs defaultValue="all" className="w-full">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <div className="flex items-center justify-between mb-6">
               <TabsList className="grid w-full max-w-md grid-cols-4 bg-white border border-gray-200">
                 <TabsTrigger value="all" className="data-[state=active]:bg-black data-[state=active]:text-white">
@@ -295,14 +549,25 @@ export default function ClientsPage() {
                 </TabsTrigger>
               </TabsList>
 
-              {/* Dialog para Criar Cliente */}
-              <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button className="bg-black hover:bg-gray-800 text-white">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Novo Cliente
-                  </Button>
-                </DialogTrigger>
+              <div className="flex items-center space-x-3">
+                {/* Botão para atualizar status */}
+                <Button 
+                  variant="outline" 
+                  onClick={updateClientStatuses}
+                  className="border-gray-300 hover:bg-gray-50"
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Atualizar Status
+                </Button>
+
+                {/* Dialog para Criar Cliente */}
+                <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button className="bg-black hover:bg-gray-800 text-white">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Novo Cliente
+                    </Button>
+                  </DialogTrigger>
                 <DialogContent className="max-w-md bg-white border border-gray-200">
                   <DialogHeader>
                     <DialogTitle className="text-black">Cadastrar Novo Cliente</DialogTitle>
@@ -378,6 +643,24 @@ export default function ClientsPage() {
                         </SelectContent>
                       </Select>
                     </div>
+                    {/* Campo de data de início - só aparece se tiver plano selecionado */}
+                    {newClient.planId && (
+                      <div className="space-y-2">
+                        <Label htmlFor="planStartDate" className="text-black">
+                          Data de Início do Plano
+                        </Label>
+                        <Input
+                          id="planStartDate"
+                          type="date"
+                          value={newClient.planStartDate}
+                          onChange={(e) => setNewClient({ ...newClient, planStartDate: e.target.value })}
+                          className="border-gray-300 focus:border-black"
+                        />
+                        <p className="text-xs text-gray-500">
+                          Deixe em branco para usar a data de hoje
+                        </p>
+                      </div>
+                    )}
                   </div>
                   <Button
                     onClick={handleCreateClient}
@@ -388,6 +671,7 @@ export default function ClientsPage() {
                   </Button>
                 </DialogContent>
               </Dialog>
+              </div>
             </div>
 
             {/* Dialog para Editar Cliente */}
@@ -467,6 +751,24 @@ export default function ClientsPage() {
                       </SelectContent>
                     </Select>
                   </div>
+                  {/* Campo de data de início - só aparece se tiver plano selecionado */}
+                  {editClient.planId && editClient.planId !== "none" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="editPlanStartDate" className="text-black">
+                        Data de Início do Plano
+                      </Label>
+                      <Input
+                        id="editPlanStartDate"
+                        type="date"
+                        value={editClient.planStartDate}
+                        onChange={(e) => setEditClient({ ...editClient, planStartDate: e.target.value })}
+                        className="border-gray-300 focus:border-black"
+                      />
+                      <p className="text-xs text-gray-500">
+                        Deixe em branco para usar a data de hoje
+                      </p>
+                    </div>
+                  )}
                 </div>
                 <Button
                   onClick={handleUpdateClient}
@@ -605,12 +907,52 @@ export default function ClientsPage() {
                                 </div>
                                 <div className="flex items-center space-x-4 mt-1 text-xs text-gray-500">
                                   <span>Agendamentos: {client._count?.appointments || 0}</span>
-                                  {client.planEndDate && (
+                                  {client.planEndDate && client.planEndDate !== null && (
                                     <span>
-                                      Plano válido até: {new Date(client.planEndDate).toLocaleDateString("pt-BR")}
+                                      Plano válido até: {formatDate(client.planEndDate)}
                                     </span>
                                   )}
                                 </div>
+                                {/* Informações do período de assinatura para clientes VIP */}
+                                {client.plan && (client.plan.name.includes("VIP") || client.plan.name.includes("Premium")) && client.plan_status !== "not_plan" && (
+                                  <div className="mt-2 space-y-1">
+                                    <div className="flex items-center space-x-2 text-xs">
+                                      <Calendar className="h-3 w-3 text-gray-400" />
+                                      <span className="text-gray-600">
+                                        Início: {formatDate(client.planStartDate)}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center space-x-2 text-xs">
+                                      <Calendar className="h-3 w-3 text-gray-400" />
+                                      <span className="text-gray-600">
+                                        Fim: {formatDate(client.planEndDate)}
+                                      </span>
+                                    </div>
+                                    {/* Status de pagamento */}
+                                    {(() => {
+                                      const paymentStatus = getPaymentStatus(client)
+                                      if (!paymentStatus) return null
+                                      
+                                      return (
+                                        <div className="flex items-center space-x-2">
+                                          {paymentStatus.status === "paid" && <CheckCircle className="h-3 w-3 text-green-500" />}
+                                          {paymentStatus.status === "warning" && <Clock className="h-3 w-3 text-yellow-500" />}
+                                          {paymentStatus.status === "pending" && <AlertTriangle className="h-3 w-3 text-red-500" />}
+                                          <Badge 
+                                            variant="outline" 
+                                            className={`text-xs ${
+                                              paymentStatus.status === "paid" ? "border-green-500 text-green-600" :
+                                              paymentStatus.status === "warning" ? "border-yellow-500 text-yellow-600" :
+                                              "border-red-500 text-red-600"
+                                            }`}
+                                          >
+                                            {paymentStatus.label}
+                                          </Badge>
+                                        </div>
+                                      )
+                                    })()}
+                                  </div>
+                                )}
                               </div>
                             </div>
                             <div className="flex items-center space-x-3">
@@ -623,6 +965,33 @@ export default function ClientsPage() {
                                     <p>R$ {Number(client.plan.price).toFixed(2)}/mês</p>
                                   </div>
                                 )}
+                                {/* Botão de pagamento para clientes pendentes */}
+                                {(() => {
+                                  const paymentStatus = getPaymentStatus(client)
+                                  if (paymentStatus && paymentStatus.status === "pending") {
+                                    return (
+                                      <div className="flex space-x-2 mt-2">
+                                        <Button
+                                          size="sm"
+                                          className="bg-red-600 hover:bg-red-700 text-white text-xs"
+                                          onClick={() => generatePaymentLink(client)}
+                                        >
+                                          <CreditCard className="h-3 w-3 mr-1" />
+                                          Gerar Link
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          className="bg-green-600 hover:bg-green-700 text-white text-xs"
+                                          onClick={() => markPlanAsPaid(client)}
+                                        >
+                                          <CheckCircle className="h-3 w-3 mr-1" />
+                                          Marcar como Pago
+                                        </Button>
+                                      </div>
+                                    )
+                                  }
+                                  return null
+                                })()}
                               </div>
                               <Button
                                 variant="ghost"
@@ -658,7 +1027,65 @@ export default function ClientsPage() {
                   <CardDescription className="text-gray-600">Clientes com plano Barbearia Premium</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-center text-gray-500 py-8">Filtro específico em desenvolvimento</p>
+                  {clientsLoading ? (
+                    <div className="text-center py-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black mx-auto"></div>
+                      <p className="text-gray-500 mt-2">Carregando clientes...</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {getFilteredClients(clients || []).length === 0 ? (
+                        <div className="text-center py-8">
+                          <p className="text-gray-500">Nenhum cliente Premium encontrado</p>
+                        </div>
+                      ) : (
+                        getFilteredClients(clients || []).map((client) => (
+                          <div key={client.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
+                            <div className="flex items-center space-x-4">
+                              <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
+                                <span className="text-sm font-medium text-gray-600">
+                                  {client.name.charAt(0).toUpperCase()}
+                                </span>
+                              </div>
+                              <div>
+                                <h3 className="font-medium text-gray-900">{client.name}</h3>
+                                <div className="flex items-center space-x-4 text-sm text-gray-500">
+                                  <span>📞 {client.phone}</span>
+                                  {client.email && <span>✉️ {client.email}</span>}
+                                </div>
+                                <div className="flex items-center space-x-4 mt-1 text-xs text-gray-500">
+                                  <span>Agendamentos: {client._count?.appointments || 0}</span>
+                                  {client.planEndDate && client.planEndDate !== null && (
+                                    <span>Plano válido até: {formatDate(client.planEndDate)}</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Badge className="bg-blue-100 text-blue-800">Premium</Badge>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setEditingClient(client)
+                                  setEditClient({
+                                    name: client.name,
+                                    phone: client.phone,
+                                    email: client.email || "",
+                                    planId: client.planId || "",
+                                    planStartDate: client.planStartDate || "",
+                                  })
+                                  setIsEditDialogOpen(true)
+                                }}
+                              >
+                                Editar
+                              </Button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -672,7 +1099,128 @@ export default function ClientsPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-center text-gray-500 py-8">Filtro específico em desenvolvimento</p>
+                  {clientsLoading ? (
+                    <div className="text-center py-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black mx-auto"></div>
+                      <p className="text-gray-500 mt-2">Carregando clientes...</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {getFilteredClients(clients || []).length === 0 ? (
+                        <div className="text-center py-8">
+                          <p className="text-gray-500">Nenhum cliente VIP encontrado</p>
+                        </div>
+                      ) : (
+                        getFilteredClients(clients || []).map((client) => (
+                          <div key={client.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
+                            <div className="flex items-center space-x-4">
+                              <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
+                                <span className="text-sm font-medium text-gray-600">
+                                  {client.name.charAt(0).toUpperCase()}
+                                </span>
+                              </div>
+                              <div>
+                                <h3 className="font-medium text-gray-900">{client.name}</h3>
+                                <div className="flex items-center space-x-4 text-sm text-gray-500">
+                                  <span>📞 {client.phone}</span>
+                                  {client.email && <span>✉️ {client.email}</span>}
+                                </div>
+                                <div className="flex items-center space-x-4 mt-1 text-xs text-gray-500">
+                                  <span>Agendamentos: {client._count?.appointments || 0}</span>
+                                  {client.planEndDate && client.planEndDate !== null && (
+                                    <span>Plano válido até: {formatDate(client.planEndDate)}</span>
+                                  )}
+                                </div>
+                                {/* Informações do período de assinatura para clientes VIP */}
+                                {client.plan && (client.plan.name.includes("VIP") || client.plan.name.includes("Premium")) && client.plan_status !== "not_plan" && (
+                                  <div className="mt-2 space-y-1">
+                                    <div className="flex items-center space-x-2 text-xs">
+                                      <Calendar className="h-3 w-3 text-gray-400" />
+                                      <span className="text-gray-600">
+                                        Início: {formatDate(client.planStartDate)}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center space-x-2 text-xs">
+                                      <Calendar className="h-3 w-3 text-gray-400" />
+                                      <span className="text-gray-600">
+                                        Fim: {formatDate(client.planEndDate)}
+                                      </span>
+                                    </div>
+                                    {/* Status de pagamento */}
+                                    {(() => {
+                                      const paymentStatus = getPaymentStatus(client)
+                                      if (!paymentStatus) return null
+
+                                      return (
+                                        <div className="flex items-center space-x-2 mt-2">
+                                          <Badge
+                                            variant={paymentStatus.color === "green" ? "default" : "destructive"}
+                                            className={`text-xs ${
+                                              paymentStatus.color === "green"
+                                                ? "bg-green-100 text-green-800"
+                                                : paymentStatus.color === "red"
+                                                ? "bg-red-100 text-red-800"
+                                                : "bg-yellow-100 text-yellow-800"
+                                            }`}
+                                          >
+                                            {paymentStatus.color === "green" && <CheckCircle className="h-3 w-3 mr-1" />}
+                                            {paymentStatus.color === "red" && <Clock className="h-3 w-3 mr-1" />}
+                                            {paymentStatus.color === "yellow" && <RefreshCw className="h-3 w-3 mr-1" />}
+                                            {paymentStatus.label}
+                                          </Badge>
+                                          {paymentStatus.status === "pending" && (
+                                            <div className="flex space-x-2">
+                                              <Button
+                                                size="sm"
+                                                variant="outline"
+                                                className="text-xs h-6 px-2"
+                                                onClick={() => generatePaymentLink(client)}
+                                              >
+                                                <CreditCard className="h-3 w-3 mr-1" />
+                                                Gerar Link
+                                              </Button>
+                                              <Button
+                                                size="sm"
+                                                className="bg-green-600 hover:bg-green-700 text-white text-xs h-6 px-2"
+                                                onClick={() => markPlanAsPaid(client)}
+                                              >
+                                                <CheckCircle className="h-3 w-3 mr-1" />
+                                                Marcar como Pago
+                                              </Button>
+                                            </div>
+                                          )}
+                                        </div>
+                                      )
+                                    })()}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Badge className="bg-purple-100 text-purple-800">VIP</Badge>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setEditingClient(client)
+                                  setEditClient({
+                                    name: client.name,
+                                    phone: client.phone,
+                                    email: client.email || "",
+                                    planId: client.planId || "",
+                                    planStartDate: client.planStartDate || "",
+                                  })
+                                  setIsEditDialogOpen(true)
+                                }}
+                              >
+                                Editar
+                              </Button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -684,7 +1232,62 @@ export default function ClientsPage() {
                   <CardDescription className="text-gray-600">Clientes que pagam por serviço</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-center text-gray-500 py-8">Filtro específico em desenvolvimento</p>
+                  {clientsLoading ? (
+                    <div className="text-center py-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black mx-auto"></div>
+                      <p className="text-gray-500 mt-2">Carregando clientes...</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {getFilteredClients(clients || []).length === 0 ? (
+                        <div className="text-center py-8">
+                          <p className="text-gray-500">Nenhum cliente Avulso encontrado</p>
+                        </div>
+                      ) : (
+                        getFilteredClients(clients || []).map((client) => (
+                          <div key={client.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
+                            <div className="flex items-center space-x-4">
+                              <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
+                                <span className="text-sm font-medium text-gray-600">
+                                  {client.name.charAt(0).toUpperCase()}
+                                </span>
+                              </div>
+                              <div>
+                                <h3 className="font-medium text-gray-900">{client.name}</h3>
+                                <div className="flex items-center space-x-4 text-sm text-gray-500">
+                                  <span>📞 {client.phone}</span>
+                                  {client.email && <span>✉️ {client.email}</span>}
+                                </div>
+                                <div className="flex items-center space-x-4 mt-1 text-xs text-gray-500">
+                                  <span>Agendamentos: {client._count?.appointments || 0}</span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Badge className="bg-gray-100 text-gray-800">Avulso</Badge>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setEditingClient(client)
+                                  setEditClient({
+                                    name: client.name,
+                                    phone: client.phone,
+                                    email: client.email || "",
+                                    planId: client.planId || "",
+                                    planStartDate: client.planStartDate || "",
+                                  })
+                                  setIsEditDialogOpen(true)
+                                }}
+                              >
+                                Editar
+                              </Button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>

@@ -114,13 +114,13 @@ export async function POST(request: NextRequest) {
           {
             AND: [
               { startTime: { lte: startTime } },
-              { endTime: { gt: startTime } },
+              { endTime: { gt: startTime } }, // Conflito se o agendamento existente termina DEPOIS do início do novo
             ],
           },
           {
             AND: [
-              { startTime: { lt: endTime } },
-              { endTime: { gte: endTime } },
+              { startTime: { lt: endTime } }, // Conflito se o agendamento existente começa ANTES do fim do novo
+              { endTime: { gt: endTime } },   // E termina DEPOIS do fim do novo
             ],
           },
         ],

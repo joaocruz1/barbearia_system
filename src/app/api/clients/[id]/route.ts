@@ -53,17 +53,47 @@ export async function PUT(request: NextRequest, context : RouteContext): Promise
     const body = await request.json()
     const { name, phone, email, planId, planStartDate, planEndDate, isActive } = body
 
+    // Determinar se o cliente será "Avulso" (sem plano)
+    const isAvulso = !planId || planId === "none" || planId === null
+
+    // Preparar os dados para atualização
+    const updateData: any = {
+      name,
+      phone,
+      email,
+      isActive,
+    }
+
+    if (isAvulso) {
+      // Cliente Avulso: limpar plano e definir status
+      updateData.planId = null
+      updateData.planStartDate = null
+      updateData.planEndDate = null
+      updateData.plan_status = "not_plan"
+    } else {
+      // Cliente com plano: calcular datas automaticamente
+      updateData.planId = planId
+      
+      // Determinar data de início
+      const startDate = planStartDate ? new Date(planStartDate) : new Date()
+      updateData.planStartDate = startDate
+      
+      // Calcular data de fim: sempre 30 dias (1 mês)
+      const endDate = new Date(startDate)
+      endDate.setDate(endDate.getDate() + 30)
+      updateData.planEndDate = endDate
+      
+      // Se não especificado, manter o status atual ou definir como "pending"
+      if (body.plan_status) {
+        updateData.plan_status = body.plan_status
+      } else {
+        updateData.plan_status = "pending" // Novo plano sempre começa como "pending"
+      }
+    }
+
     const client = await prisma.client.update({
       where: { id: id },
-      data: {
-        name,
-        phone,
-        email,
-        planId,
-        planStartDate: planStartDate ? new Date(planStartDate) : null,
-        planEndDate: planEndDate ? new Date(planEndDate) : null,
-        isActive,
-      },
+      data: updateData,
       include: {
         plan: true,
       },

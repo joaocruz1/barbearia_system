@@ -9,9 +9,9 @@ import { Separator } from "@/components/ui/separator"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Calendar, Clock, DollarSign, TrendingUp, MapPin, Scissors, Star, Plus, Filter } from "lucide-react"
+import { Calendar, Clock, DollarSign, TrendingUp, MapPin, Scissors, Star, Plus, Filter, X, CheckCircle, CreditCard } from "lucide-react"
 import { useApi } from "@/hooks/use-api"
-import { dashboardApi, plansApi, locationsApi, type DashboardStats, type Plan, type Location } from "@/lib/api"
+import { dashboardApi, plansApi, locationsApi, appointmentsApi, type DashboardStats, type Plan, type Location } from "@/lib/api"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "sonner" // Importando toast do sonner
 
@@ -22,6 +22,7 @@ export default function DashboardPage() {
   const router = useRouter()
 
   const [barberName, setBarberName] = useState<string | null>(null)
+  const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
     const storedBarberId = localStorage.getItem("barberId")
@@ -59,6 +60,71 @@ export default function DashboardPage() {
     })
   }, [barberId, location, barberName])
 
+  // Funções para ações rápidas
+  const handleCancelAppointment = async (appointmentId: string, clientName: string) => {
+    try {
+      console.log("Cancelando agendamento:", appointmentId, "para cliente:", clientName)
+      await appointmentsApi.cancel(appointmentId)
+      console.log("Agendamento cancelado com sucesso, atualizando dashboard...")
+      toast.success("Agendamento Cancelado", {
+        description: `O agendamento de ${clientName} foi cancelado com sucesso.`,
+        duration: 3000,
+      })
+      setRefreshKey(prev => prev + 1) // Forçar reload dos dados
+      console.log("Dashboard atualizado após cancelamento")
+    } catch (error) {
+      console.error("Erro ao cancelar agendamento:", error)
+      toast.error("Erro ao Cancelar", {
+        description: "Não foi possível cancelar o agendamento. Tente novamente.",
+        duration: 3000,
+      })
+    }
+  }
+
+  const handleMarkAsPaid = async (appointmentId: string, clientName: string) => {
+    try {
+      console.log("Marcando como pago:", appointmentId, "para cliente:", clientName)
+      await appointmentsApi.update(appointmentId, {
+        paymentStatus: "paid"
+      })
+      console.log("Pagamento marcado com sucesso, atualizando dashboard...")
+      toast.success("Pagamento Confirmado", {
+        description: `O pagamento de ${clientName} foi marcado como realizado.`,
+        duration: 3000,
+      })
+      setRefreshKey(prev => prev + 1) // Forçar reload dos dados
+      console.log("Dashboard atualizado após marcar como pago")
+    } catch (error) {
+      console.error("Erro ao marcar como pago:", error)
+      toast.error("Erro ao Marcar Pagamento", {
+        description: "Não foi possível marcar o pagamento. Tente novamente.",
+        duration: 3000,
+      })
+    }
+  }
+
+  const handleMarkAsCompleted = async (appointmentId: string, clientName: string) => {
+    try {
+      console.log("Marcando como concluído:", appointmentId, "para cliente:", clientName)
+      await appointmentsApi.update(appointmentId, {
+        status: "completed"
+      })
+      console.log("Serviço marcado como concluído com sucesso, atualizando dashboard...")
+      toast.success("Serviço Concluído", {
+        description: `O serviço de ${clientName} foi marcado como concluído.`,
+        duration: 3000,
+      })
+      setRefreshKey(prev => prev + 1) // Forçar reload dos dados
+      console.log("Dashboard atualizado após marcar como concluído")
+    } catch (error) {
+      console.error("Erro ao marcar como concluído:", error)
+      toast.error("Erro ao Concluir Serviço", {
+        description: "Não foi possível marcar o serviço como concluído. Tente novamente.",
+        duration: 3000,
+      })
+    }
+  }
+
   // Fetch dashboard stats APENAS do barbeiro logado
   const {
     data: dashboardStats,
@@ -66,12 +132,12 @@ export default function DashboardPage() {
     error: statsError,
     refetch: refetchStats,
   } = useApi<DashboardStats>(
-    () =>
+    barberId ? () =>
       dashboardApi.getStats({
-        barberId: barberId || undefined, // Sempre filtrar pelo barbeiro logado
+        barberId: barberId, // Sempre filtrar pelo barbeiro logado
         date: new Date().toISOString().split("T")[0],
-      }),
-    [barberId],
+      }) : null,
+    [barberId, refreshKey],
   )
 
   // Fetch plans
@@ -129,7 +195,21 @@ export default function DashboardPage() {
     }) || []
 
   // Log antes da renderização
-  console.log("Dashboard - Renderizando com dados:", { barberId, location, barberName })
+  console.log("Dashboard - Renderizando com dados:", { 
+    barberId, 
+    location, 
+    barberName,
+    statsLoading,
+    dashboardStats: dashboardStats ? {
+      appointmentsCount: dashboardStats.appointments.length,
+      appointments: dashboardStats.appointments.map(a => ({
+        id: a.id,
+        clientName: a.client.name,
+        status: a.status,
+        paymentStatus: a.paymentStatus
+      }))
+    } : null
+  })
 
   return (
     <SidebarProvider>
@@ -301,33 +381,100 @@ export default function DashboardPage() {
                               </div>
                             </div>
                           </div>
-                          <div className="flex flex-col items-end space-y-2">
-                            <Badge
-                              variant={appointment.client.plan?.name === "Avulso" ? "outline" : "default"}
-                              className={
-                                appointment.client.plan?.name !== "Avulso"
-                                  ? "bg-black text-white"
-                                  : "border-gray-300 text-gray-700"
-                              }
-                            >
-                              {appointment.client.plan?.name || "Avulso"}
-                            </Badge>
-                            <Badge
-                              variant={
-                                appointment.status === "confirmed" || appointment.status === "scheduled"
-                                  ? "default"
-                                  : "secondary"
-                              }
-                              className={
-                                appointment.status === "confirmed" || appointment.status === "scheduled"
-                                  ? "bg-green-600 text-white"
-                                  : "bg-gray-200 text-gray-700"
-                              }
-                            >
-                              {appointment.status === "confirmed" || appointment.status === "scheduled"
-                                ? "Confirmado"
-                                : "Aguardando"}
-                            </Badge>
+                          <div className="flex flex-col items-end space-y-3">
+                            <div className="flex flex-col items-end space-y-2">
+                              <Badge
+                                variant={appointment.client.plan?.name === "Avulso" ? "outline" : "default"}
+                                className={
+                                  appointment.client.plan?.name !== "Avulso"
+                                    ? "bg-black text-white"
+                                    : "border-gray-300 text-gray-700"
+                                }
+                              >
+                                {appointment.client.plan?.name || "Avulso"}
+                              </Badge>
+                              <Badge
+                                variant={
+                                  appointment.status === "confirmed" || appointment.status === "scheduled"
+                                    ? "default"
+                                    : appointment.status === "completed"
+                                    ? "default"
+                                    : "secondary"
+                                }
+                                className={
+                                  appointment.status === "confirmed" || appointment.status === "scheduled"
+                                    ? "bg-green-600 text-white"
+                                    : appointment.status === "completed"
+                                    ? "bg-blue-600 text-white"
+                                    : appointment.status === "cancelled"
+                                    ? "bg-red-600 text-white"
+                                    : "bg-gray-200 text-gray-700"
+                                }
+                              >
+                                {appointment.status === "confirmed" || appointment.status === "scheduled"
+                                  ? "Confirmado"
+                                  : appointment.status === "completed"
+                                  ? "Concluído"
+                                  : appointment.status === "cancelled"
+                                  ? "Cancelado"
+                                  : "Aguardando"}
+                              </Badge>
+                              {appointment.paymentStatus && (
+                                <Badge
+                                  variant="outline"
+                                  className={
+                                    appointment.paymentStatus === "paid"
+                                      ? "bg-green-100 text-green-800 border-green-300"
+                                      : appointment.paymentStatus === "pending"
+                                      ? "bg-yellow-100 text-yellow-800 border-yellow-300"
+                                      : "bg-red-100 text-red-800 border-red-300"
+                                  }
+                                >
+                                  {appointment.paymentStatus === "paid"
+                                    ? "Pago"
+                                    : appointment.paymentStatus === "pending"
+                                    ? "Pendente"
+                                    : "Não Pago"}
+                                </Badge>
+                              )}
+                            </div>
+                            
+                            {/* Botões de Ação Rápida */}
+                            {appointment.status !== "cancelled" && appointment.status !== "completed" && (
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-8 px-2 text-red-600 border-red-300 hover:bg-red-50"
+                                  onClick={() => handleCancelAppointment(appointment.id, appointment.client.name)}
+                                  title="Cancelar Agendamento"
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
+                                
+                                {appointment.paymentStatus !== "paid" && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-8 px-2 text-green-600 border-green-300 hover:bg-green-50"
+                                    onClick={() => handleMarkAsPaid(appointment.id, appointment.client.name)}
+                                    title="Marcar como Pago"
+                                  >
+                                    <CreditCard className="h-3 w-3" />
+                                  </Button>
+                                )}
+                                
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-8 px-2 text-blue-600 border-blue-300 hover:bg-blue-50"
+                                  onClick={() => handleMarkAsCompleted(appointment.id, appointment.client.name)}
+                                  title="Marcar como Concluído"
+                                >
+                                  <CheckCircle className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            )}
                           </div>
                         </div>
                       ))}

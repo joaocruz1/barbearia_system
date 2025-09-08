@@ -61,14 +61,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Phone number already exists" }, { status: 400 })
     }
 
+    // Determinar se o cliente será "Avulso" (sem plano)
+    const isAvulso = !planId || planId === "none" || planId === null
+
+    let finalStartDate = null
+    let finalEndDate = null
+
+    if (!isAvulso) {
+      // Se não é Avulso, calcular datas
+      finalStartDate = planStartDate ? new Date(planStartDate) : new Date()
+      
+      // Calcular data de fim: sempre 30 dias (1 mês)
+      finalEndDate = new Date(finalStartDate)
+      finalEndDate.setDate(finalEndDate.getDate() + 30)
+    }
+
     const client = await prisma.client.create({
       data: {
         name,
         phone,
         email,
-        planId,
-        planStartDate: planStartDate ? new Date(planStartDate) : null,
-        planEndDate: planEndDate ? new Date(planEndDate) : null,
+        planId: isAvulso ? null : planId,
+        planStartDate: finalStartDate,
+        planEndDate: finalEndDate,
+        plan_status: isAvulso ? "not_plan" : "pending", // Novo cliente com plano começa como "pending"
       },
       include: {
         plan: true,

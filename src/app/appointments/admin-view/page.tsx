@@ -118,6 +118,8 @@ export default function AppointmentsPage() {
   const router = useRouter();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
   const [barberId, setBarberId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("");
@@ -441,21 +443,152 @@ export default function AppointmentsPage() {
         clientId: appointment.clientId,
         serviceId: appointment.serviceId,
         barberId: appointment.barberId,
-        date: new Date().toISOString().split("T")[0], // Data atual como padrão
+        date: typeof appointment.appointmentDate === 'string' 
+          ? appointment.appointmentDate
+          : (appointment.appointmentDate as Date).toISOString().split("T")[0],
         time: appointment.startTime,
         paymentMethod: appointment.paymentMethod || "",
         notes: appointment.notes || "",
       });
 
-      // Abrir o modal de criação
-      setIsDialogOpen(true);
+      // Definir o agendamento sendo editado
+      setEditingAppointment(appointment);
 
-      toast.info("Reagendamento", {
-        description: `Preenchendo formulário para reagendar ${appointment.client.name}`,
+      // Abrir o modal de edição
+      setIsEditDialogOpen(true);
+
+      toast.info("Editando Agendamento", {
+        description: `Editando agendamento de ${appointment.client.name}`,
       });
     },
     []
   );
+
+  const handleCompleteAppointment = useCallback(
+    async (appointmentId: string, clientName: string) => {
+      const confirmed = confirm(
+        `✅ Tem certeza que deseja marcar o agendamento de ${clientName} como concluído?\n\nEsta ação não pode ser desfeita!`
+      );
+
+      if (confirmed) {
+        try {
+          await appointmentsApi.complete(appointmentId);
+          toast.success("Sucesso", {
+            description: "Agendamento marcado como concluído!",
+          });
+          refetchAppointments();
+        } catch (error) {
+          console.error("❌ Erro ao concluir agendamento:", error);
+          toast.error("Erro", {
+            description: "Falha ao marcar agendamento como concluído.",
+          });
+        }
+      }
+    },
+    [refetchAppointments]
+  );
+
+  const handleUpdateAppointment = useCallback(async () => {
+    if (!editingAppointment) return;
+
+    if (
+      !newAppointment.clientId ||
+      !newAppointment.serviceId ||
+      !newAppointment.time ||
+      !newAppointment.barberId
+    ) {
+      toast.error("Erro", {
+        description: "Preencha todos os campos obrigatórios",
+      });
+      return;
+    }
+
+    const client = clients?.find((c) => c.id === newAppointment.clientId);
+    const service = services?.find((s) => s.id === newAppointment.serviceId);
+    if (!client || !service) return;
+
+    // Calculate end time
+    const [hours, minutes] = newAppointment.time.split(":").map(Number);
+    const startTime = new Date();
+    startTime.setHours(hours, minutes, 0, 0);
+    const endTime = new Date(
+      startTime.getTime() + service.durationMinutes * 60000
+    );
+    const endTimeString = `${endTime
+      .getHours()
+      .toString()
+      .padStart(2, "0")}:${endTime.getMinutes().toString().padStart(2, "0")}`;
+
+    // Determine payment method based on client plan
+    let paymentMethod = newAppointment.paymentMethod;
+    if (client.plan && client.plan.name !== "Avulso") {
+      const canUsePlan =
+        (service.name.includes("Corte") &&
+          (client.plan.name === "Barbearia Premium" ||
+            client.plan.name === "Cabelo VIP")) ||
+        (service.name.includes("Barba") &&
+          (client.plan.name === "Barbearia Premium" ||
+            client.plan.name === "Barba VIP"));
+      if (canUsePlan) {
+        paymentMethod = "Plano";
+      }
+    }
+
+    const currentLocation = localStorage.getItem("barberLocation");
+    const locationObj = locations?.find(
+      (l) => l.name.toLowerCase().replace(/\s/g, "-") === currentLocation
+    );
+    const locationId = locationObj?.id || locations?.[0]?.id;
+
+    try {
+      await appointmentsApi.update(editingAppointment.id, {
+        appointmentDate: newAppointment.date,
+        startTime: newAppointment.time,
+        endTime: endTimeString,
+        paymentMethod,
+        paymentStatus: paymentMethod === "Plano" ? "paid" : "pending",
+        notes: newAppointment.notes,
+      });
+
+      toast.success("Sucesso", {
+        description: "Agendamento atualizado com sucesso!",
+      });
+
+      // Limpar formulário e fechar modal
+      setNewAppointment({
+        clientId: "",
+        serviceId: "",
+        barberId: "",
+        date: new Date().toISOString().split("T")[0],
+        time: "",
+        paymentMethod: "",
+        notes: "",
+      });
+      setEditingAppointment(null);
+      setIsEditDialogOpen(false);
+      refetchAppointments();
+    } catch (error: any) {
+      console.error("Erro ao atualizar agendamento:", error);
+      
+      // Verificar se é erro de conflito de horário
+      if (error?.status === 400 && error?.message === "Time slot is already booked") {
+        toast.error("Horário Ocupado", {
+          description: "Já existe um agendamento neste horário. Escolha outro horário disponível.",
+        });
+      } else {
+        toast.error("Erro", {
+          description: error?.message || "Falha ao atualizar agendamento. Tente novamente.",
+        });
+      }
+    }
+  }, [
+    editingAppointment,
+    newAppointment,
+    clients,
+    services,
+    locations,
+    refetchAppointments,
+  ]);
 
   return (
     <SidebarProvider>
@@ -779,6 +912,229 @@ export default function AppointmentsPage() {
                   </Button>
                 </DialogContent>
               </Dialog>
+
+              {/* Modal de Edição */}
+              <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+                <DialogContent className="max-w-lg bg-card border shadow-lg">
+                  <DialogHeader className="space-y-3">
+                    <DialogTitle className="text-xl font-semibold text-card-foreground flex items-center gap-2">
+                      <Scissors className="h-5 w-5 text-primary" />
+                      Editar Agendamento
+                    </DialogTitle>
+                    <DialogDescription className="text-muted-foreground">
+                      Edite os dados do agendamento de {editingAppointment?.client.name}
+                    </DialogDescription>
+                  </DialogHeader>
+
+                  <div className="grid gap-6 py-4">
+                    {/* Barber selection */}
+                    <div className="space-y-3">
+                      <Label
+                        htmlFor="edit-barber"
+                        className="text-sm font-medium text-card-foreground flex items-center gap-2"
+                      >
+                        <User className="h-4 w-4 text-primary" />
+                        Barbeiro *
+                      </Label>
+                      <Select
+                        onValueChange={handleBarberChange}
+                        value={newAppointment.barberId}
+                      >
+                        <SelectTrigger className="h-10 bg-background border-border focus:border-primary focus:ring-ring">
+                          <SelectValue placeholder="Selecione o barbeiro" />
+                        </SelectTrigger>
+                        <SelectContent className="z-[9999]" position="popper">
+                          {barbersLoading ? (
+                            <SelectItem value="loading" disabled>
+                              Carregando barbeiros...
+                            </SelectItem>
+                          ) : barbers && barbers.length > 0 ? (
+                            barbers.map((barber) => (
+                              <SelectItem key={barber.id} value={barber.id}>
+                                {barber.name}
+                              </SelectItem>
+                            ))
+                          ) : (
+                            <SelectItem value="no-barbers" disabled>
+                              Nenhum barbeiro disponível
+                            </SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Client selection */}
+                    <div className="space-y-3">
+                      <Label
+                        htmlFor="edit-client"
+                        className="text-sm font-medium text-card-foreground"
+                      >
+                        Cliente *
+                      </Label>
+                      <Select
+                        onValueChange={handleClientChange}
+                        value={newAppointment.clientId}
+                      >
+                        <SelectTrigger className="h-10 bg-background border-border focus:border-primary focus:ring-ring">
+                          <SelectValue placeholder="Selecione o cliente" />
+                        </SelectTrigger>
+                        <SelectContent className="z-[9999]" position="popper">
+                          {clientsLoading ? (
+                            <SelectItem value="loading" disabled>
+                              Carregando...
+                            </SelectItem>
+                          ) : clients && clients.length > 0 ? (
+                            clients.map((client) => (
+                              <SelectItem key={client.id} value={client.id}>
+                                <div className="flex items-center justify-between w-full">
+                                  <span>{client.name}</span>
+                                  {client.plan &&
+                                    client.plan.name !== "Avulso" && (
+                                      <Star className="h-3 w-3 text-accent ml-2" />
+                                    )}
+                                </div>
+                              </SelectItem>
+                            ))
+                          ) : (
+                            <SelectItem value="no-clients" disabled>
+                              Nenhum cliente disponível
+                            </SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Service selection */}
+                    <div className="space-y-3">
+                      <Label
+                        htmlFor="edit-service"
+                        className="text-sm font-medium text-card-foreground"
+                      >
+                        Serviço *
+                      </Label>
+                      <Select
+                        onValueChange={handleServiceChange}
+                        value={newAppointment.serviceId}
+                      >
+                        <SelectTrigger className="h-10 bg-background border-border focus:border-primary focus:ring-ring">
+                          <SelectValue placeholder="Selecione o serviço" />
+                        </SelectTrigger>
+                        <SelectContent className="z-[9999]" position="popper">
+                          {servicesLoading ? (
+                            <SelectItem value="loading" disabled>
+                              Carregando...
+                            </SelectItem>
+                          ) : services && services.length > 0 ? (
+                            services.map((service) => (
+                              <SelectItem key={service.id} value={service.id}>
+                                <div className="flex justify-between w-full">
+                                  <span>{service.name}</span>
+                                  <span className="text-sm text-muted-foreground ml-2">
+                                    R$ {Number(service.price).toFixed(2)} (
+                                    {service.durationMinutes}min)
+                                  </span>
+                                </div>
+                              </SelectItem>
+                            ))
+                          ) : (
+                            <SelectItem value="no-services" disabled>
+                              Nenhum serviço disponível
+                            </SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Date and time */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-3">
+                        <Label
+                          htmlFor="edit-date"
+                          className="text-sm font-medium text-card-foreground flex items-center gap-2"
+                        >
+                          <Calendar className="h-4 w-4 text-primary" />
+                          Data *
+                        </Label>
+                        <Input
+                          id="edit-date"
+                          type="date"
+                          min={new Date().toISOString().split("T")[0]}
+                          value={newAppointment.date}
+                          onChange={handleDateChange}
+                          className="h-10 bg-background border-border focus:border-primary focus:ring-ring"
+                        />
+                      </div>
+                      <div className="space-y-3">
+                        <Label
+                          htmlFor="edit-time"
+                          className="text-sm font-medium text-card-foreground flex items-center gap-2"
+                        >
+                          <Clock className="h-4 w-4 text-primary" />
+                          Horário *
+                        </Label>
+                        <Input
+                          id="edit-time"
+                          type="time"
+                          value={newAppointment.time}
+                          onChange={handleTimeChange}
+                          className="h-10 bg-background border-border focus:border-primary focus:ring-ring"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Payment method */}
+                    <div className="space-y-3">
+                      <Label
+                        htmlFor="edit-payment"
+                        className="text-sm font-medium text-card-foreground"
+                      >
+                        Método de Pagamento
+                      </Label>
+                      <Select
+                        onValueChange={handlePaymentMethodChange}
+                        value={newAppointment.paymentMethod}
+                      >
+                        <SelectTrigger className="h-10 bg-background border-border focus:border-primary focus:ring-ring">
+                          <SelectValue placeholder="Selecione o método" />
+                        </SelectTrigger>
+                        <SelectContent className="z-[9999]" position="popper">
+                          <SelectItem value="Pix">Pix</SelectItem>
+                          <SelectItem value="Dinheiro">Dinheiro</SelectItem>
+                          <SelectItem value="Cartão">Cartão</SelectItem>
+                          <SelectItem value="Plano">
+                            Plano (se aplicável)
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Notes */}
+                    <div className="space-y-3">
+                      <Label
+                        htmlFor="edit-notes"
+                        className="text-sm font-medium text-card-foreground"
+                      >
+                        Observações
+                      </Label>
+                      <Input
+                        id="edit-notes"
+                        placeholder="Observações adicionais (opcional)"
+                        value={newAppointment.notes}
+                        onChange={handleNotesChange}
+                        className="h-10 bg-background border-border focus:border-primary focus:ring-ring"
+                      />
+                    </div>
+                  </div>
+
+                  <Button
+                    onClick={handleUpdateAppointment}
+                    className="w-full h-11 bg-primary hover:bg-primary/90 text-primary-foreground font-medium shadow-sm"
+                    disabled={creatingAppointment}
+                  >
+                    {creatingAppointment ? "Salvando..." : "Salvar Alterações"}
+                  </Button>
+                </DialogContent>
+              </Dialog>
             </div>
           </div>
         </header>
@@ -797,6 +1153,7 @@ export default function AppointmentsPage() {
           onDeleteAppointment={handleDeleteAppointment}
           onPermanentDeleteAppointment={handlePermanentDeleteAppointment}
           onRescheduleAppointment={handleRescheduleAppointment}
+          onCompleteAppointment={handleCompleteAppointment}
         />
       </SidebarInset>
     </SidebarProvider>

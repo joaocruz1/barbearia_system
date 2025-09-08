@@ -27,7 +27,8 @@ interface AppointmentCalendarProps {
   onDeleteAppointment?: (appointmentId: string) => Promise<void>;
   onPermanentDeleteAppointment?: (appointmentId: string) => Promise<void>;
   onRescheduleAppointment?: (appointment: Appointment) => void;
-}
+  onCompleteAppointment?: (appointmentId: string, clientName: string) => Promise<void>;
+} // Updated interface with onCompleteAppointment
 
 // Generate time slots from 10:00 to 20:00 in 15-minute intervals (more practical for barbershops)
 const generateTimeSlots = () => {
@@ -110,6 +111,7 @@ export function AppointmentCalendar({
   onDeleteAppointment,
   onPermanentDeleteAppointment,
   onRescheduleAppointment,
+  onCompleteAppointment,
 }: AppointmentCalendarProps) {
   const [compactMode, setCompactMode] = useState(false);
   const [draggedAppointment, setDraggedAppointment] =
@@ -118,13 +120,6 @@ export function AppointmentCalendar({
     date: Date;
     timeSlot: string;
   } | null>(null);
-  const [editingAppointment, setEditingAppointment] =
-    useState<Appointment | null>(null);
-  const [editForm, setEditForm] = useState({
-    startTime: "",
-    endTime: "",
-    notes: "",
-  });
   // Função para normalizar horários (remover segundos se existirem)
   const normalizeTime = (time: string) => {
     return time.split(":").slice(0, 2).join(":");
@@ -288,7 +283,7 @@ export function AppointmentCalendar({
         const newStartMinutes = timeToMinutes(newStartTime);
         const newEndMinutes = timeToMinutes(newEndTime);
 
-        // Verificar sobreposição de horários
+        // Verificar sobreposição de horários (permitir agendamentos consecutivos)
         const conflict =
           newStartMinutes < appointmentEndMinutes &&
           newEndMinutes > appointmentStartMinutes;
@@ -385,43 +380,6 @@ export function AppointmentCalendar({
     [draggedAppointment, appointments, onUpdateAppointment]
   );
 
-  // Funções de Edição
-  const handleEditStart = useCallback((appointment: Appointment) => {
-    setEditingAppointment(appointment);
-    setEditForm({
-      startTime: appointment.startTime,
-      endTime: appointment.endTime,
-      notes: appointment.notes || "",
-    });
-  }, []);
-
-  const handleEditSave = useCallback(async () => {
-    if (!editingAppointment) return;
-
-    try {
-      const updatedAppointment = {
-        ...editingAppointment,
-        startTime: editForm.startTime,
-        endTime: editForm.endTime,
-        notes: editForm.notes,
-      };
-
-      if (onUpdateAppointment) {
-        await onUpdateAppointment(updatedAppointment);
-      }
-
-      setEditingAppointment(null);
-      setEditForm({ startTime: "", endTime: "", notes: "" });
-    } catch (error) {
-      console.error("Erro ao salvar edição:", error);
-      alert("❌ Erro ao salvar alterações!");
-    }
-  }, [editingAppointment, editForm, onUpdateAppointment]);
-
-  const handleEditCancel = useCallback(() => {
-    setEditingAppointment(null);
-    setEditForm({ startTime: "", endTime: "", notes: "" });
-  }, []);
 
   // Função para cancelar agendamento
   const handleCancelAppointment = useCallback(
@@ -488,6 +446,20 @@ export function AppointmentCalendar({
       onRescheduleAppointment(appointment);
     },
     [onRescheduleAppointment]
+  );
+
+  // Função para completar agendamento
+  const handleCompleteAppointment = useCallback(
+    async (appointmentId: string, clientName: string) => {
+      if (!onCompleteAppointment) {
+        alert("❌ Função de conclusão não disponível!");
+        return;
+      }
+
+      console.log("✅ Completando agendamento:", clientName);
+      await onCompleteAppointment(appointmentId, clientName);
+    },
+    [onCompleteAppointment]
   );
 
   // Get appointment for specific date and time slot
@@ -798,75 +770,7 @@ export function AppointmentCalendar({
                           }}
                           title={`${appointment.client.name} - ${appointment.service.name} (${appointment.startTime} - ${appointment.endTime}) - Arraste para mover`}
                         >
-                          {editingAppointment?.id === appointment.id ? (
-                            // Modo de edição
-                            <div className="h-full">
-                              <div className="flex items-center justify-between mb-2">
-                                <span className="text-xs font-medium text-gray-700">
-                                  Editando...
-                                </span>
-                                <div className="flex gap-1">
-                                  <button
-                                    onClick={handleEditSave}
-                                    className="p-1 bg-green-500 text-white rounded hover:bg-green-600"
-                                    title="Salvar"
-                                  >
-                                    <Check className="h-3 w-3" />
-                                  </button>
-                                  <button
-                                    onClick={handleEditCancel}
-                                    className="p-1 bg-red-500 text-white rounded hover:bg-red-600"
-                                    title="Cancelar"
-                                  >
-                                    <X className="h-3 w-3" />
-                                  </button>
-                                </div>
-                              </div>
-
-                              <div className="space-y-1">
-                                <div className="flex gap-1">
-                                  <input
-                                    type="time"
-                                    value={editForm.startTime}
-                                    onChange={(e) =>
-                                      setEditForm((prev) => ({
-                                        ...prev,
-                                        startTime: e.target.value,
-                                      }))
-                                    }
-                                    className="w-16 text-xs p-1 border rounded"
-                                  />
-                                  <span className="text-xs text-gray-500">
-                                    -
-                                  </span>
-                                  <input
-                                    type="time"
-                                    value={editForm.endTime}
-                                    onChange={(e) =>
-                                      setEditForm((prev) => ({
-                                        ...prev,
-                                        endTime: e.target.value,
-                                      }))
-                                    }
-                                    className="w-16 text-xs p-1 border rounded"
-                                  />
-                                </div>
-                                <textarea
-                                  value={editForm.notes}
-                                  onChange={(e) =>
-                                    setEditForm((prev) => ({
-                                      ...prev,
-                                      notes: e.target.value,
-                                    }))
-                                  }
-                                  placeholder="Observações..."
-                                  className="w-full text-xs p-1 border rounded resize-none"
-                                  rows={2}
-                                />
-                              </div>
-                            </div>
-                          ) : (
-                            // Modo de visualização
+                          {/* Modo de visualização */}
                             <div className="flex items-start gap-1 h-full">
                               <div className="flex-shrink-0 flex gap-1 mt-0.5">
                                 {appointment.service.name
@@ -888,25 +792,30 @@ export function AppointmentCalendar({
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        handleEditStart(appointment);
-                                      }}
-                                      className="p-0.5 hover:bg-gray-200 rounded flex-shrink-0"
-                                      title="Editar"
-                                    >
-                                      <Edit2 className="h-3 w-3 text-gray-600" />
-                                    </button>
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
                                         handleRescheduleAppointment(
                                           appointment
                                         );
                                       }}
                                       className="p-0.5 hover:bg-blue-200 rounded flex-shrink-0"
-                                      title="Reagendar"
+                                      title="Editar agendamento"
                                     >
                                       <Calendar className="h-3 w-3 text-blue-600" />
                                     </button>
+                                    {appointment.status !== "completed" && (
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleCompleteAppointment(
+                                            appointment.id,
+                                            appointment.client.name
+                                          );
+                                        }}
+                                        className="p-0.5 hover:bg-green-200 rounded flex-shrink-0"
+                                        title="Concluir"
+                                      >
+                                        <Check className="h-3 w-3 text-green-600" />
+                                      </button>
+                                    )}
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation();
@@ -938,13 +847,11 @@ export function AppointmentCalendar({
                                 <p className="text-xs text-gray-600 truncate leading-tight">
                                   {appointment.service.name}
                                 </p>
-                                {showBarberName && (
-                                  <p className="text-xs text-blue-600 font-medium truncate leading-tight">
-                                    {barbers?.find(
-                                      (b) => b.id === appointment.barberId
-                                    )?.name || "Barbeiro"}
-                                  </p>
-                                )}
+                                <p className="text-xs text-blue-600 font-medium truncate leading-tight">
+                                  {barbers?.find(
+                                    (b) => b.id === appointment.barberId
+                                  )?.name || "Barbeiro"}
+                                </p>
                                 <p className="text-xs text-gray-500 leading-tight">
                                   {appointment.startTime}-{appointment.endTime}
                                 </p>
@@ -955,7 +862,6 @@ export function AppointmentCalendar({
                                 )}
                               </div>
                             </div>
-                          )}
                         </div>
                       )}
                     </div>
