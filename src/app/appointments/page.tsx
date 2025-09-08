@@ -673,6 +673,56 @@ export default function AppointmentsPage() {
     refetchAppointments,
   ]);
 
+  // Função específica para drag & drop - atualiza apenas data e horário
+  const handleUpdateAppointmentDragDrop = useCallback(async (appointment: Appointment) => {
+    console.log("🔄 handleUpdateAppointmentDragDrop chamado para:", appointment.client.name);
+    
+    // Salvar posição atual do scroll
+    const currentScrollTop = document.documentElement.scrollTop || document.body.scrollTop;
+    const currentScrollLeft = document.documentElement.scrollLeft || document.body.scrollLeft;
+    
+    try {
+      await appointmentsApi.update(appointment.id, {
+        appointmentDate: appointment.appointmentDate,
+        startTime: appointment.startTime,
+        endTime: appointment.endTime,
+        status: appointment.status,
+        notes: appointment.notes,
+      });
+
+      toast.success("Sucesso", {
+        description: `Agendamento de ${appointment.client.name} movido com sucesso!`,
+      });
+
+      // Recarregar agendamentos
+      await refetchAppointments();
+      
+      // Restaurar posição do scroll após um pequeno delay para garantir que o DOM foi atualizado
+      setTimeout(() => {
+        window.scrollTo({
+          top: currentScrollTop,
+          left: currentScrollLeft,
+          behavior: 'instant' // Usar 'instant' para não ter animação
+        });
+      }, 100);
+      
+    } catch (error: any) {
+      console.error("❌ Erro ao mover agendamento:", error);
+      
+      // Verificar se é erro de conflito de horário
+      if (error?.status === 400 && error?.message === "Time slot is already booked") {
+        toast.error("Horário Ocupado", {
+          description: "Já existe um agendamento neste horário. Escolha outro horário disponível.",
+        });
+      } else {
+        toast.error("Erro", {
+          description: error?.message || "Falha ao mover agendamento. Tente novamente.",
+        });
+      }
+      throw error; // Re-throw para que o componente possa lidar com o erro
+    }
+  }, [refetchAppointments]);
+
   return (
     <SidebarProvider>
       <AppSidebar />
@@ -1260,6 +1310,7 @@ export default function AppointmentsPage() {
           statusFilter={statusFilter}
           onStatusFilterChange={handleStatusFilterChangeString}
           showBarberName={true}
+          onUpdateAppointment={handleUpdateAppointmentDragDrop}
           onDeleteAppointment={handleDeleteAppointment}
           onPermanentDeleteAppointment={handlePermanentDeleteAppointment}
           onRescheduleAppointment={handleRescheduleAppointment}

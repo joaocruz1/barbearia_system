@@ -211,10 +211,14 @@ export function AppointmentCalendar({
     async (e: React.DragEvent, targetDate: Date, targetTimeSlot: string) => {
       e.preventDefault();
 
-      if (!draggedAppointment) return;
+      if (!draggedAppointment) {
+        console.log("❌ Nenhum agendamento sendo arrastado");
+        return;
+      }
 
       console.log("🎯 Tentando soltar agendamento:", {
         appointmentId: draggedAppointment.id,
+        clientName: draggedAppointment.client.name,
         targetDate: targetDate.toISOString().split("T")[0],
         targetTimeSlot,
       });
@@ -222,7 +226,7 @@ export function AppointmentCalendar({
       const newStartTime = targetTimeSlot;
       const [hours, minutes] = targetTimeSlot.split(":").map(Number);
 
-      // Calcular novo horário de fim baseado na duração do serviço (mais robusto)
+      // Calcular novo horário de fim baseado na duração do serviço
       const serviceDuration = draggedAppointment.service?.durationMinutes || 30;
       let newEndHours = hours;
       let newEndMinutes = minutes + serviceDuration;
@@ -257,13 +261,13 @@ export function AppointmentCalendar({
         return;
       }
 
-      console.log("⏰ Novos horários:", {
+      console.log("⏰ Novos horários calculados:", {
         start: newStartTime,
         end: newEndTime,
         duration: serviceDuration,
       });
 
-      // Verificar se há conflito de horário (lógica melhorada)
+      // Verificar se há conflito de horário
       const hasConflict = appointments?.some((appointment) => {
         if (appointment.id === draggedAppointment.id) return false;
 
@@ -311,7 +315,7 @@ export function AppointmentCalendar({
         return;
       }
 
-      // Atualizar o agendamento
+      // Criar o agendamento atualizado
       const updatedAppointment = {
         ...draggedAppointment,
         appointmentDate: targetDate.toISOString().split("T")[0],
@@ -319,32 +323,6 @@ export function AppointmentCalendar({
         endTime: newEndTime,
       };
 
-      // Garantir que a data está no formato correto
-      const formattedDate = targetDate.toISOString().split("T")[0];
-      console.log("📅 Data formatada:", {
-        original: targetDate,
-        formatted: formattedDate,
-        targetDateISO: targetDate.toISOString(),
-      });
-
-      // Validar dados antes de enviar
-      if (
-        !updatedAppointment.id ||
-        !updatedAppointment.appointmentDate ||
-        !updatedAppointment.startTime ||
-        !updatedAppointment.endTime
-      ) {
-        console.error(
-          "❌ Dados inválidos para atualização:",
-          updatedAppointment
-        );
-        alert("❌ Dados inválidos para atualização!");
-        setDraggedAppointment(null);
-        setDragOverSlot(null);
-        return;
-      }
-
-      console.log("✅ Agendamento atualizado:", updatedAppointment);
       console.log("📋 Dados para API:", {
         id: updatedAppointment.id,
         appointmentDate: updatedAppointment.appointmentDate,
@@ -354,11 +332,24 @@ export function AppointmentCalendar({
         notes: updatedAppointment.notes,
       });
 
+      // Validar dados antes de enviar
+      if (
+        !updatedAppointment.id ||
+        !updatedAppointment.appointmentDate ||
+        !updatedAppointment.startTime ||
+        !updatedAppointment.endTime
+      ) {
+        console.error("❌ Dados inválidos para atualização:", updatedAppointment);
+        alert("❌ Dados inválidos para atualização!");
+        setDraggedAppointment(null);
+        setDragOverSlot(null);
+        return;
+      }
+
       try {
         console.log("🔍 Verificando onUpdateAppointment:", {
           exists: !!onUpdateAppointment,
           type: typeof onUpdateAppointment,
-          function: onUpdateAppointment,
         });
 
         if (onUpdateAppointment) {
@@ -371,7 +362,8 @@ export function AppointmentCalendar({
         }
       } catch (error) {
         console.error("❌ Erro ao atualizar agendamento:", error);
-        alert("❌ Erro ao mover agendamento!");
+        // O erro já foi tratado na função handleUpdateAppointmentDragDrop
+        // Não mostrar alerta aqui para evitar duplicação
       }
 
       setDraggedAppointment(null);
@@ -728,9 +720,9 @@ export function AppointmentCalendar({
                       onDragLeave={handleDragLeave}
                       onDrop={(e) => handleDrop(e, date, timeSlot)}
                     >
-                      {/* Slot vazio com indicador de drop */}
+                      {/* Slot vazio com indicador de drop - só aparece quando arrastando */}
                       {!appointment && draggedAppointment && (
-                        <div className="absolute inset-1 border-2 border-dashed border-blue-400 bg-blue-100 opacity-80 rounded-lg flex items-center justify-center animate-pulse">
+                        <div className="absolute inset-1 border-2 border-dashed border-blue-400 bg-blue-50 opacity-90 rounded-lg flex items-center justify-center animate-pulse">
                           <div className="text-center">
                             <span className="text-xs text-blue-700 font-medium block">
                               ✨ Soltar aqui
