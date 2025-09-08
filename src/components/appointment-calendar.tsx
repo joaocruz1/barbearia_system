@@ -4,8 +4,9 @@ import {
   Edit2,
   X,
   Check,
-  Trash2,
+  Ban,
   Calendar,
+  Trash2,
 } from "lucide-react";
 import { useState, useRef, useCallback } from "react";
 import { Appointment, Barber } from "@/lib/api";
@@ -24,6 +25,7 @@ interface AppointmentCalendarProps {
   showBarberName?: boolean;
   onUpdateAppointment?: (appointment: Appointment) => Promise<void>;
   onDeleteAppointment?: (appointmentId: string) => Promise<void>;
+  onPermanentDeleteAppointment?: (appointmentId: string) => Promise<void>;
   onRescheduleAppointment?: (appointment: Appointment) => void;
 }
 
@@ -106,6 +108,7 @@ export function AppointmentCalendar({
   showBarberName = false,
   onUpdateAppointment,
   onDeleteAppointment,
+  onPermanentDeleteAppointment,
   onRescheduleAppointment,
 }: AppointmentCalendarProps) {
   const [compactMode, setCompactMode] = useState(false);
@@ -420,29 +423,57 @@ export function AppointmentCalendar({
     setEditForm({ startTime: "", endTime: "", notes: "" });
   }, []);
 
-  // Função para excluir agendamento
-  const handleDeleteAppointment = useCallback(
+  // Função para cancelar agendamento
+  const handleCancelAppointment = useCallback(
     async (appointmentId: string, clientName: string) => {
       if (!onDeleteAppointment) {
-        alert("❌ Função de exclusão não disponível!");
+        alert("❌ Função de cancelamento não disponível!");
         return;
       }
 
       const confirmed = confirm(
-        `🗑️ Tem certeza que deseja excluir o agendamento de ${clientName}?\n\nEsta ação não pode ser desfeita!`
+        `🚫 Tem certeza que deseja cancelar o agendamento de ${clientName}?\n\nEsta ação não pode ser desfeita!`
       );
 
       if (confirmed) {
         try {
           await onDeleteAppointment(appointmentId);
-          console.log("🗑️ Agendamento excluído com sucesso!");
+          console.log("🚫 Agendamento cancelado com sucesso!");
         } catch (error) {
-          console.error("❌ Erro ao excluir agendamento:", error);
-          alert("❌ Erro ao excluir agendamento!");
+          console.error("❌ Erro ao cancelar agendamento:", error);
+          alert("❌ Erro ao cancelar agendamento!");
         }
       }
     },
     [onDeleteAppointment]
+  );
+
+  // Função para excluir agendamento permanentemente
+  const handlePermanentDeleteAppointment = useCallback(
+    async (appointmentId: string, clientName: string) => {
+      if (!onPermanentDeleteAppointment) {
+        alert("❌ Função de exclusão permanente não disponível!");
+        return;
+      }
+
+      const confirmed = confirm(
+        `🗑️ Tem certeza que deseja EXCLUIR PERMANENTEMENTE o agendamento de ${clientName}?\n\n⚠️ Esta ação é IRREVERSÍVEL e removerá o agendamento do banco de dados!`
+      );
+
+      if (confirmed) {
+        try {
+          await onPermanentDeleteAppointment(appointmentId);
+          console.log("🗑️ Agendamento excluído permanentemente!");
+        } catch (error) {
+          console.error(
+            "❌ Erro ao excluir agendamento permanentemente:",
+            error
+          );
+          alert("❌ Erro ao excluir agendamento permanentemente!");
+        }
+      }
+    },
+    [onPermanentDeleteAppointment]
   );
 
   // Função para reagendar agendamento
@@ -879,15 +910,28 @@ export function AppointmentCalendar({
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        handleDeleteAppointment(
+                                        handleCancelAppointment(
                                           appointment.id,
                                           appointment.client.name
                                         );
                                       }}
                                       className="p-0.5 hover:bg-red-200 rounded flex-shrink-0"
-                                      title="Excluir"
+                                      title="Cancelar"
                                     >
-                                      <Trash2 className="h-3 w-3 text-red-600" />
+                                      <Ban className="h-3 w-3 text-red-600" />
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handlePermanentDeleteAppointment(
+                                          appointment.id,
+                                          appointment.client.name
+                                        );
+                                      }}
+                                      className="p-0.5 hover:bg-red-300 rounded flex-shrink-0"
+                                      title="Excluir Permanentemente"
+                                    >
+                                      <Trash2 className="h-3 w-3 text-red-700" />
                                     </button>
                                   </div>
                                 </div>

@@ -128,3 +128,39 @@ export async function DELETE(
     );
   }
 }
+
+// PATCH /api/appointments/[id] - Excluir agendamento permanentemente
+export async function PATCH(
+  request: NextRequest,
+  context: RouteContext
+): Promise<NextResponse> {
+  const routeParams = await context.params;
+  const id = routeParams.id;
+
+  try {
+    // Verificar se o agendamento existe
+    const existingAppointment = await prisma.appointment.findUnique({
+      where: { id: id },
+    });
+
+    if (!existingAppointment) {
+      return NextResponse.json(
+        { error: "Appointment not found" },
+        { status: 404 }
+      );
+    }
+
+    // Excluir o agendamento permanentemente
+    await prisma.appointment.delete({
+      where: { id: id },
+    });
+
+    return NextResponse.json({ message: "Appointment deleted permanently" });
+  } catch (error) {
+    console.error("Error deleting appointment:", error);
+    return NextResponse.json(
+      { error: "Failed to delete appointment" },
+      { status: 500 }
+    );
+  }
+}

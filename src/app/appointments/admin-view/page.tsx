@@ -377,21 +377,51 @@ export default function AppointmentsPage() {
       console.log("🗑️ handleDeleteAppointment chamado para:", appointmentId);
 
       try {
-        console.log("📡 Chamando API de exclusão...");
+        console.log("📡 Chamando API de cancelamento...");
         await appointmentsApi.cancel(appointmentId);
-        console.log("✅ API de exclusão retornou com sucesso!");
+        console.log("✅ API de cancelamento retornou com sucesso!");
 
         toast.success("Sucesso", {
-          description: "Agendamento excluído com sucesso!",
+          description: "Agendamento cancelado com sucesso!",
         });
 
         console.log("🔄 Recarregando agendamentos...");
         await refetchAppointments();
         console.log("✅ Agendamentos recarregados!");
       } catch (error) {
-        console.error("❌ Erro ao excluir agendamento:", error);
+        console.error("❌ Erro ao cancelar agendamento:", error);
         toast.error("Erro", {
-          description: "Falha ao excluir agendamento.",
+          description: "Falha ao cancelar agendamento.",
+        });
+        throw error;
+      }
+    },
+    [refetchAppointments]
+  );
+
+  const handlePermanentDeleteAppointment = useCallback(
+    async (appointmentId: string) => {
+      console.log(
+        "🗑️ handlePermanentDeleteAppointment chamado para:",
+        appointmentId
+      );
+
+      try {
+        console.log("📡 Chamando API de exclusão permanente...");
+        await appointmentsApi.permanentDelete(appointmentId);
+        console.log("✅ API de exclusão permanente retornou com sucesso!");
+
+        toast.success("Sucesso", {
+          description: "Agendamento excluído permanentemente!",
+        });
+
+        console.log("🔄 Recarregando agendamentos...");
+        await refetchAppointments();
+        console.log("✅ Agendamentos recarregados!");
+      } catch (error) {
+        console.error("❌ Erro ao excluir agendamento permanentemente:", error);
+        toast.error("Erro", {
+          description: "Falha ao excluir agendamento permanentemente.",
         });
         throw error;
       }
@@ -765,6 +795,7 @@ export default function AppointmentsPage() {
           statusFilter={statusFilter}
           onStatusFilterChange={handleStatusFilterChangeString}
           onDeleteAppointment={handleDeleteAppointment}
+          onPermanentDeleteAppointment={handlePermanentDeleteAppointment}
           onRescheduleAppointment={handleRescheduleAppointment}
         />
       </SidebarInset>
