@@ -15,12 +15,8 @@ export async function GET(request: NextRequest) {
     const defaultStartDate = new Date();
     defaultStartDate.setDate(defaultStartDate.getDate() - 30);
 
-    const start = startDate 
-      ? new Date(startDate) 
-      : defaultStartDate;
-    const end = endDate 
-      ? new Date(endDate) 
-      : defaultEndDate;
+    const start = startDate ? new Date(startDate) : defaultStartDate;
+    const end = endDate ? new Date(endDate) : defaultEndDate;
 
     // Construir filtros
     const where: any = {
@@ -70,7 +66,6 @@ export async function GET(request: NextRequest) {
       orderBy: [{ appointmentDate: "desc" }, { startTime: "desc" }],
     });
 
-
     // Calcular estatísticas financeiras
     const stats = {
       totalRevenue: 0,
@@ -108,35 +103,43 @@ export async function GET(request: NextRequest) {
     };
 
     // Processar cada agendamento
-    const dailyMap = new Map<string, { revenue: number; appointments: number }>();
-    const barberMap = new Map<string, { name: string; revenue: number; appointments: number }>();
-    const serviceMap = new Map<string, { name: string; revenue: number; appointments: number }>();
-
+    const dailyMap = new Map<
+      string,
+      { revenue: number; appointments: number }
+    >();
+    const barberMap = new Map<
+      string,
+      { name: string; revenue: number; appointments: number }
+    >();
+    const serviceMap = new Map<
+      string,
+      { name: string; revenue: number; appointments: number }
+    >();
 
     appointments.forEach((appointment) => {
       const servicePrice = Number(appointment.service.price);
-      const dateKey = appointment.appointmentDate.toISOString().split('T')[0];
+      const dateKey = appointment.appointmentDate.toISOString().split("T")[0];
 
       // Contar por status
       switch (appointment.status) {
-        case 'completed':
+        case "completed":
           stats.completedAppointments++;
-          if (appointment.paymentStatus === 'paid') {
+          if (appointment.paymentStatus === "paid") {
             stats.paidRevenue += servicePrice;
             stats.totalRevenue += servicePrice;
-          } else if (appointment.paymentStatus === 'pending') {
+          } else if (appointment.paymentStatus === "pending") {
             stats.pendingRevenue += servicePrice;
           }
           break;
-        case 'scheduled':
+        case "scheduled":
           stats.pendingAppointments++;
           stats.pendingRevenue += servicePrice;
           break;
-        case 'cancelled':
+        case "cancelled":
           stats.cancelledAppointments++;
           stats.cancelledRevenue += servicePrice;
           break;
-        case 'no_show':
+        case "no_show":
           stats.noShowAppointments++;
           break;
       }
@@ -144,17 +147,17 @@ export async function GET(request: NextRequest) {
       // Contar por método de pagamento
       if (appointment.paymentMethod) {
         switch (appointment.paymentMethod.toLowerCase()) {
-          case 'pix':
+          case "pix":
             stats.paymentMethods.pix += servicePrice;
             break;
-          case 'dinheiro':
+          case "dinheiro":
             stats.paymentMethods.dinheiro += servicePrice;
             break;
-          case 'cartão':
-          case 'cartao':
+          case "cartão":
+          case "cartao":
             stats.paymentMethods.cartao += servicePrice;
             break;
-          case 'plano':
+          case "plano":
             stats.paymentMethods.plano += servicePrice;
             break;
         }
@@ -164,13 +167,20 @@ export async function GET(request: NextRequest) {
       if (dailyMap.has(dateKey)) {
         const dayData = dailyMap.get(dateKey)!;
         dayData.appointments++;
-        if (appointment.status === 'completed' && appointment.paymentStatus === 'paid') {
+        if (
+          appointment.status === "completed" &&
+          appointment.paymentStatus === "paid"
+        ) {
           dayData.revenue += servicePrice;
         }
       } else {
         dailyMap.set(dateKey, {
           appointments: 1,
-          revenue: appointment.status === 'completed' && appointment.paymentStatus === 'paid' ? servicePrice : 0,
+          revenue:
+            appointment.status === "completed" &&
+            appointment.paymentStatus === "paid"
+              ? servicePrice
+              : 0,
         });
       }
 
@@ -179,14 +189,14 @@ export async function GET(request: NextRequest) {
         const barberData = barberMap.get(appointment.barberId)!;
         barberData.appointments++;
         // Incluir receita para agendamentos concluídos (independente do status de pagamento)
-        if (appointment.status === 'completed') {
+        if (appointment.status === "completed") {
           barberData.revenue += servicePrice;
         }
       } else {
         barberMap.set(appointment.barberId, {
           name: appointment.barber.name,
           appointments: 1,
-          revenue: appointment.status === 'completed' ? servicePrice : 0,
+          revenue: appointment.status === "completed" ? servicePrice : 0,
         });
       }
 
@@ -195,14 +205,14 @@ export async function GET(request: NextRequest) {
         const serviceData = serviceMap.get(appointment.serviceId)!;
         serviceData.appointments++;
         // Incluir receita para agendamentos concluídos (independente do status de pagamento)
-        if (appointment.status === 'completed') {
+        if (appointment.status === "completed") {
           serviceData.revenue += servicePrice;
         }
       } else {
         serviceMap.set(appointment.serviceId, {
           name: appointment.service.name,
           appointments: 1,
-          revenue: appointment.status === 'completed' ? servicePrice : 0,
+          revenue: appointment.status === "completed" ? servicePrice : 0,
         });
       }
     });
@@ -213,17 +223,26 @@ export async function GET(request: NextRequest) {
       .sort((a, b) => a.date.localeCompare(b.date));
 
     stats.barberStats = Array.from(barberMap.entries())
-      .map(([barberId, data]) => ({ barberId, ...data }))
+      .map(([barberId, data]) => ({
+        barberId,
+        barberName: data.name,
+        revenue: data.revenue,
+        appointments: data.appointments,
+      }))
       .sort((a, b) => b.revenue - a.revenue);
 
     stats.serviceStats = Array.from(serviceMap.entries())
-      .map(([serviceId, data]) => ({ serviceId, ...data }))
+      .map(([serviceId, data]) => ({
+        serviceId,
+        serviceName: data.name,
+        revenue: data.revenue,
+        appointments: data.appointments,
+      }))
       .sort((a, b) => b.revenue - a.revenue);
-
 
     return NextResponse.json({
       stats,
-      appointments: appointments.map(appointment => ({
+      appointments: appointments.map((appointment) => ({
         id: appointment.id,
         clientName: appointment.client.name,
         barberName: appointment.barber.name,

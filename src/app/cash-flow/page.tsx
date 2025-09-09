@@ -17,7 +17,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   DollarSign,
   TrendingUp,
@@ -34,7 +40,12 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { useApi } from "@/hooks/use-api";
-import { locationsApi, barbersApi, type Location, type Barber } from "@/lib/api";
+import {
+  locationsApi,
+  barbersApi,
+  type Location,
+  type Barber,
+} from "@/lib/api";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
@@ -98,29 +109,31 @@ interface CashFlowData {
 
 // Função para formatar moeda
 const formatCurrency = (value: number) => {
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
   }).format(value);
 };
 
 // Função para formatar data
 const formatDate = (dateString: string) => {
-  return new Date(dateString).toLocaleDateString('pt-BR');
+  return new Date(dateString).toLocaleDateString("pt-BR");
 };
 
 // Função para formatar data e hora
 const formatDateTime = (dateString: string, timeString: string) => {
   const date = new Date(dateString);
-  return `${date.toLocaleDateString('pt-BR')} às ${timeString}`;
+  return `${date.toLocaleDateString("pt-BR")} às ${timeString}`;
 };
 
 export default function CashFlowPage() {
   const router = useRouter();
   const [isAdmin, setIsAdmin] = useState(false);
   const [dateRange, setDateRange] = useState({
-    startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 dias atrás
-    endDate: new Date().toISOString().split('T')[0], // hoje
+    startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .split("T")[0], // 30 dias atrás
+    endDate: new Date().toISOString().split("T")[0], // hoje
   });
   const [locationFilter, setLocationFilter] = useState<string>("");
   const [barberFilter, setBarberFilter] = useState<string>("");
@@ -134,7 +147,7 @@ export default function CashFlowPage() {
         router.push("/");
         return;
       }
-      
+
       try {
         const response = await fetch(`/api/users?adminBarberId=${barberId}`);
         if (response.ok) {
@@ -147,7 +160,7 @@ export default function CashFlowPage() {
         router.push("/unauthorized");
       }
     };
-    
+
     checkAdminStatus();
   }, [router]);
 
@@ -157,43 +170,48 @@ export default function CashFlowPage() {
     []
   );
 
-  const { data: barbers } = useApi<Barber[]>(
-    () => barbersApi.getAll(),
-    []
-  );
+  const { data: barbers } = useApi<Barber[]>(() => barbersApi.getAll(), []);
 
   // Buscar dados de caixa
-  const { data: cashFlowData, loading: cashFlowLoading, refetch: refetchCashFlow } = useApi<CashFlowData>(
-    () => {
-      const params = new URLSearchParams({
-        startDate: dateRange.startDate,
-        endDate: dateRange.endDate,
-      });
-      
-      if (locationFilter && locationFilter !== 'all') params.append('locationId', locationFilter);
-      if (barberFilter && barberFilter !== 'all') params.append('barberId', barberFilter);
-      
-      return fetch(`/api/cash-flow?${params.toString()}`)
-        .then(res => res.json());
-    },
-    [dateRange, locationFilter, barberFilter]
-  );
+  const {
+    data: cashFlowData,
+    loading: cashFlowLoading,
+    refetch: refetchCashFlow,
+  } = useApi<CashFlowData>(() => {
+    const params = new URLSearchParams({
+      startDate: dateRange.startDate,
+      endDate: dateRange.endDate,
+    });
+
+    if (locationFilter && locationFilter !== "all")
+      params.append("locationId", locationFilter);
+    if (barberFilter && barberFilter !== "all")
+      params.append("barberId", barberFilter);
+
+    return fetch(`/api/cash-flow?${params.toString()}`).then((res) =>
+      res.json()
+    );
+  }, [dateRange, locationFilter, barberFilter]);
 
   // Filtrar agendamentos por status
   const filteredAppointments = useMemo(() => {
     if (!cashFlowData?.appointments) return [];
-    
-    if (!statusFilter || statusFilter === 'all') return cashFlowData.appointments;
-    
-    return cashFlowData.appointments.filter(appointment => 
-      appointment.status === statusFilter
+
+    if (!statusFilter || statusFilter === "all")
+      return cashFlowData.appointments;
+
+    return cashFlowData.appointments.filter(
+      (appointment) => appointment.status === statusFilter
     );
   }, [cashFlowData?.appointments, statusFilter]);
 
   // Handlers para filtros
-  const handleDateRangeChange = useCallback((field: 'startDate' | 'endDate', value: string) => {
-    setDateRange(prev => ({ ...prev, [field]: value }));
-  }, []);
+  const handleDateRangeChange = useCallback(
+    (field: "startDate" | "endDate", value: string) => {
+      setDateRange((prev) => ({ ...prev, [field]: value }));
+    },
+    []
+  );
 
   const handleLocationFilterChange = useCallback((value: string) => {
     setLocationFilter(value);
@@ -249,10 +267,14 @@ export default function CashFlowPage() {
                 disabled={cashFlowLoading}
                 className="h-9 px-4"
               >
-                <RefreshCw className={`h-4 w-4 mr-2 ${cashFlowLoading ? 'animate-spin' : ''}`} />
+                <RefreshCw
+                  className={`h-4 w-4 mr-2 ${
+                    cashFlowLoading ? "animate-spin" : ""
+                  }`}
+                />
                 Atualizar
               </Button>
-              
+
               <Button
                 variant="outline"
                 size="sm"
@@ -284,18 +306,22 @@ export default function CashFlowPage() {
                     id="startDate"
                     type="date"
                     value={dateRange.startDate}
-                    onChange={(e) => handleDateRangeChange('startDate', e.target.value)}
+                    onChange={(e) =>
+                      handleDateRangeChange("startDate", e.target.value)
+                    }
                     className="h-9"
                   />
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label htmlFor="endDate">Data Final</Label>
                   <Input
                     id="endDate"
                     type="date"
                     value={dateRange.endDate}
-                    onChange={(e) => handleDateRangeChange('endDate', e.target.value)}
+                    onChange={(e) =>
+                      handleDateRangeChange("endDate", e.target.value)
+                    }
                     className="h-9"
                   />
                 </div>
@@ -303,7 +329,10 @@ export default function CashFlowPage() {
                 {/* Localização */}
                 <div className="space-y-2">
                   <Label>Localização</Label>
-                  <Select value={locationFilter} onValueChange={handleLocationFilterChange}>
+                  <Select
+                    value={locationFilter}
+                    onValueChange={handleLocationFilterChange}
+                  >
                     <SelectTrigger className="h-9">
                       <SelectValue placeholder="Todas as localizações" />
                     </SelectTrigger>
@@ -321,7 +350,10 @@ export default function CashFlowPage() {
                 {/* Barbeiro */}
                 <div className="space-y-2">
                   <Label>Barbeiro</Label>
-                  <Select value={barberFilter} onValueChange={handleBarberFilterChange}>
+                  <Select
+                    value={barberFilter}
+                    onValueChange={handleBarberFilterChange}
+                  >
                     <SelectTrigger className="h-9">
                       <SelectValue placeholder="Todos os barbeiros" />
                     </SelectTrigger>
@@ -339,7 +371,10 @@ export default function CashFlowPage() {
                 {/* Status */}
                 <div className="space-y-2">
                   <Label>Status</Label>
-                  <Select value={statusFilter} onValueChange={handleStatusFilterChange}>
+                  <Select
+                    value={statusFilter}
+                    onValueChange={handleStatusFilterChange}
+                  >
                     <SelectTrigger className="h-9">
                       <SelectValue placeholder="Todos os status" />
                     </SelectTrigger>
@@ -361,7 +396,9 @@ export default function CashFlowPage() {
             {/* Receita Total */}
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Receita Total</CardTitle>
+                <CardTitle className="text-sm font-medium">
+                  Receita Total
+                </CardTitle>
                 <DollarSign className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
@@ -377,7 +414,9 @@ export default function CashFlowPage() {
             {/* Receita Paga */}
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Receita Paga</CardTitle>
+                <CardTitle className="text-sm font-medium">
+                  Receita Paga
+                </CardTitle>
                 <CheckCircle className="h-4 w-4 text-green-600" />
               </CardHeader>
               <CardContent>
@@ -393,7 +432,9 @@ export default function CashFlowPage() {
             {/* Receita Pendente */}
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Receita Pendente</CardTitle>
+                <CardTitle className="text-sm font-medium">
+                  Receita Pendente
+                </CardTitle>
                 <Clock className="h-4 w-4 text-yellow-600" />
               </CardHeader>
               <CardContent>
@@ -409,7 +450,9 @@ export default function CashFlowPage() {
             {/* Receita Cancelada */}
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Receita Cancelada</CardTitle>
+                <CardTitle className="text-sm font-medium">
+                  Receita Cancelada
+                </CardTitle>
                 <XCircle className="h-4 w-4 text-red-600" />
               </CardHeader>
               <CardContent>
@@ -468,20 +511,26 @@ export default function CashFlowPage() {
                 <Users className="h-4 w-4" />
                 Top Barbeiros
               </CardTitle>
-              <CardDescription>
-                Ranking por receita gerada
-              </CardDescription>
+              <CardDescription>Ranking por receita gerada</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 {stats?.barberStats.slice(0, 5).map((barber, index) => (
-                  <div key={barber.barberId} className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                  <div
+                    key={barber.barberId}
+                    className="flex items-center justify-between p-3 bg-muted rounded-lg"
+                  >
                     <div className="flex items-center gap-3">
-                      <Badge variant="secondary" className="w-8 h-8 flex items-center justify-center">
+                      <Badge
+                        variant="secondary"
+                        className="w-8 h-8 flex items-center justify-center"
+                      >
                         {index + 1}
                       </Badge>
                       <div>
-                        <div className="font-medium">{barber.barberName || 'Nome não disponível'}</div>
+                        <div className="font-medium">
+                          {barber.barberName || "Nome não disponível"}
+                        </div>
                         <div className="text-sm text-muted-foreground">
                           {barber.appointments} agendamentos
                         </div>
@@ -505,20 +554,26 @@ export default function CashFlowPage() {
                 <Scissors className="h-4 w-4" />
                 Top Serviços
               </CardTitle>
-              <CardDescription>
-                Ranking por receita gerada
-              </CardDescription>
+              <CardDescription>Ranking por receita gerada</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 {stats?.serviceStats.slice(0, 5).map((service, index) => (
-                  <div key={service.serviceId} className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                  <div
+                    key={service.serviceId}
+                    className="flex items-center justify-between p-3 bg-muted rounded-lg"
+                  >
                     <div className="flex items-center gap-3">
-                      <Badge variant="secondary" className="w-8 h-8 flex items-center justify-center">
+                      <Badge
+                        variant="secondary"
+                        className="w-8 h-8 flex items-center justify-center"
+                      >
                         {index + 1}
                       </Badge>
                       <div>
-                        <div className="font-medium">{service.serviceName || 'Nome não disponível'}</div>
+                        <div className="font-medium">
+                          {service.serviceName || "Nome não disponível"}
+                        </div>
                         <div className="text-sm text-muted-foreground">
                           {service.appointments} agendamentos
                         </div>
@@ -556,27 +611,44 @@ export default function CashFlowPage() {
               ) : (
                 <div className="space-y-4">
                   {filteredAppointments.map((appointment) => (
-                    <div key={appointment.id} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div
+                      key={appointment.id}
+                      className="flex items-center justify-between p-4 border rounded-lg"
+                    >
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="font-medium">{appointment.clientName}</span>
-                          <Badge 
+                          <span className="font-medium">
+                            {appointment.clientName}
+                          </span>
+                          <Badge
                             variant={
-                              appointment.status === 'completed' ? 'default' :
-                              appointment.status === 'scheduled' ? 'secondary' :
-                              appointment.status === 'cancelled' ? 'destructive' : 'outline'
+                              appointment.status === "completed"
+                                ? "default"
+                                : appointment.status === "scheduled"
+                                ? "secondary"
+                                : appointment.status === "cancelled"
+                                ? "destructive"
+                                : "outline"
                             }
                           >
-                            {appointment.status === 'completed' ? 'Concluído' :
-                             appointment.status === 'scheduled' ? 'Agendado' :
-                             appointment.status === 'cancelled' ? 'Cancelado' : 'Não compareceu'}
+                            {appointment.status === "completed"
+                              ? "Concluído"
+                              : appointment.status === "scheduled"
+                              ? "Agendado"
+                              : appointment.status === "cancelled"
+                              ? "Cancelado"
+                              : "Não compareceu"}
                           </Badge>
                         </div>
                         <div className="text-sm text-muted-foreground">
-                          {appointment.barberName} • {appointment.serviceName} • {appointment.locationName}
+                          {appointment.barberName} • {appointment.serviceName} •{" "}
+                          {appointment.locationName}
                         </div>
                         <div className="text-sm text-muted-foreground">
-                          {formatDateTime(appointment.appointmentDate, appointment.startTime)}
+                          {formatDateTime(
+                            appointment.appointmentDate,
+                            appointment.startTime
+                          )}
                         </div>
                       </div>
                       <div className="text-right">
@@ -584,17 +656,23 @@ export default function CashFlowPage() {
                           {formatCurrency(appointment.servicePrice)}
                         </div>
                         <div className="text-sm text-muted-foreground">
-                          {appointment.paymentMethod || 'Não informado'}
+                          {appointment.paymentMethod || "Não informado"}
                         </div>
-                        <Badge 
+                        <Badge
                           variant={
-                            appointment.paymentStatus === 'paid' ? 'default' :
-                            appointment.paymentStatus === 'pending' ? 'secondary' : 'destructive'
+                            appointment.paymentStatus === "paid"
+                              ? "default"
+                              : appointment.paymentStatus === "pending"
+                              ? "secondary"
+                              : "destructive"
                           }
                           className="text-xs"
                         >
-                          {appointment.paymentStatus === 'paid' ? 'Pago' :
-                           appointment.paymentStatus === 'pending' ? 'Pendente' : 'Cancelado'}
+                          {appointment.paymentStatus === "paid"
+                            ? "Pago"
+                            : appointment.paymentStatus === "pending"
+                            ? "Pendente"
+                            : "Cancelado"}
                         </Badge>
                       </div>
                     </div>
