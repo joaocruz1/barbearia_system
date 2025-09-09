@@ -6,8 +6,8 @@ type RouteContext = {
 }
 
 // GET /api/barbers/[id] - Buscar barbeiro por ID
-export async function GET(request: NextRequest, constext : RouteContext): Promise<NextResponse> {
-  const params = await constext.params;
+export async function GET(request: NextRequest, context : RouteContext): Promise<NextResponse> {
+  const params = await context.params;
   const id = params.id
   try {
     const barber = await prisma.barber.findUnique({

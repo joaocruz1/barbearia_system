@@ -5,11 +5,11 @@ import bcrypt from "bcrypt"
 // POST /api/users/[id]/reset-password - Resetar senha (apenas admin)
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { adminBarberId, newPassword } = await request.json()
-    const barberId = params.id
+    const { id: barberId } = await params
 
     // Validar campos obrigatórios
     if (!adminBarberId || !newPassword) {

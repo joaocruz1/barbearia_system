@@ -5,11 +5,11 @@ import bcrypt from "bcrypt"
 // PUT /api/users/[id] - Atualizar usuário (apenas admin)
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { adminBarberId, name, email, phone, role, isActive } = await request.json()
-    const barberId = params.id
+    const { id: barberId } = await params
 
     // Validar campos obrigatórios
     if (!adminBarberId) {
@@ -100,12 +100,12 @@ export async function PUT(
 // DELETE /api/users/[id] - Desativar usuário (apenas admin)
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { searchParams } = new URL(request.url)
     const adminBarberId = searchParams.get("adminBarberId")
-    const barberId = params.id
+    const { id: barberId } = await params
 
     if (!adminBarberId) {
       return NextResponse.json(
