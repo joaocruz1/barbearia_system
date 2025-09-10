@@ -18,8 +18,9 @@ Sistema completo para gestão de barbearia desenvolvido com Next.js 15, TypeScri
 
 ## 🎯 Visão Geral
 
-O Sistema de Gestão de Barbearia é uma aplicação web moderna que permite:
+O Sistema de Gestão de Barbearia é uma aplicação web moderna com **Inteligência Artificial integrada** que permite:
 
+- **🤖 Atendimento Automático via WhatsApp**: IA conversacional que agenda clientes 24/7
 - **Gestão de Clientes**: Cadastro, edição e controle de status de clientes
 - **Sistema de Agendamentos**: Agendamento, cancelamento e controle de status
 - **Gestão de Barbeiros**: Cadastro, horários de trabalho e autenticação
@@ -28,6 +29,7 @@ O Sistema de Gestão de Barbearia é uma aplicação web moderna que permite:
 - **Fluxo de Caixa**: Controle de receitas e despesas
 - **Dashboard**: Visão geral com estatísticas e métricas
 - **Multi-localização**: Suporte a múltiplas unidades da barbearia
+- **Processamento Multimodal**: Suporte a texto, áudio, imagens e documentos via WhatsApp
 
 ## 🏗️ Arquitetura do Sistema
 
@@ -57,6 +59,30 @@ graph TB
         J --> P[locations]
     end
     
+    subgraph "Módulo de IA (n8n + OpenAI)"
+        WA[WhatsApp Webhook] --> WB[Processamento de Mensagens]
+        WB --> WC[Transcrição de Áudio]
+        WB --> WD[Análise de Imagens]
+        WB --> WE[Extração de PDFs]
+        WC --> WF[IA Conversacional]
+        WD --> WF
+        WE --> WF
+        WF --> WG[Agente de Agendamento]
+        WF --> WH[Agente de Cadastro]
+        WG --> WI[Validação de Horários]
+        WH --> WJ[Criação de Clientes]
+        WI --> WK[Geração de PIX]
+        WJ --> WL[Memória Conversacional]
+        WK --> WL
+    end
+    
+    subgraph "Serviços Externos"
+        XA[Evolution API] --> XB[WhatsApp Business]
+        XC[OpenAI GPT-4] --> XD[Transcrição e Análise]
+        XE[Asaas API] --> XF[Geração de PIX]
+        XG[Redis] --> XH[Cache e Buffer]
+    end
+    
     subgraph "Autenticação"
         Q[Login Form] --> R[bcrypt Hash]
         R --> S[LocalStorage]
@@ -72,6 +98,12 @@ graph TB
     A --> Q
     E --> Q
     B --> U
+    WA --> XA
+    WF --> XC
+    WK --> XE
+    WL --> XG
+    I --> WG
+    I --> WH
 ```
 
 ## 🛠️ Tecnologias Utilizadas
@@ -94,12 +126,35 @@ graph TB
 - **PostgreSQL** - Banco de dados relacional
 - **Prisma Migrations** - Controle de versão do schema
 
+### Módulo de IA
+- **n8n** - Plataforma de automação de workflows
+- **OpenAI GPT-4** - Modelo de linguagem para conversação
+- **OpenAI Whisper** - Transcrição de áudio
+- **OpenAI Vision** - Análise de imagens
+- **Evolution API** - Integração com WhatsApp Business
+- **Asaas API** - Geração de cobranças PIX
+- **Redis** - Cache e buffer de mensagens
+- **PostgreSQL** - Memória conversacional
+
 ### Desenvolvimento
 - **Turbopack** - Bundler rápido para desenvolvimento
 - **ESLint** - Linter para qualidade de código
 - **tsx** - Executor TypeScript
 
 ## ✨ Funcionalidades
+
+### 🤖 **Módulo de Inteligência Artificial (IA)**
+- **Agendamento Automático via WhatsApp**: IA conversacional que agenda clientes através do WhatsApp
+- **Processamento Multimodal**: Suporte a texto, áudio, imagens e documentos
+- **Transcrição de Áudio**: Conversão automática de mensagens de voz em texto
+- **Análise de Imagens**: Processamento e descrição de imagens enviadas
+- **Extração de Documentos**: Leitura e processamento de PDFs
+- **Gestão de Conversas**: Buffer de mensagens com controle de timing
+- **Criação Automática de Clientes**: Cadastro automático de novos clientes
+- **Validação de Planos**: Verificação de status de planos de assinatura
+- **Geração de PIX**: Criação automática de cobranças PIX para planos
+- **Memória Conversacional**: Manutenção do contexto da conversa
+- **Controle de Spam**: Sistema anti-spam com bloqueio temporário
 
 ### 🔐 Autenticação e Autorização
 - Login seguro com hash bcrypt
@@ -145,6 +200,114 @@ graph TB
 - Receita diária/mensal
 - Clientes VIP ativos
 - Gráficos e visualizações
+
+## 🤖 Módulo de Inteligência Artificial
+
+### Arquitetura da IA
+
+O sistema possui um módulo avançado de IA integrado via **n8n** que automatiza completamente o atendimento via WhatsApp. A IA é capaz de:
+
+#### **Agentes Especializados**
+- **MainAgent**: Agente principal para agendamentos e consultas
+- **AgenteCriaContato**: Especializado em cadastro de novos clientes
+- **Agente de Pagamento**: Gerencia cobranças PIX para planos
+
+#### **Processamento Multimodal**
+```mermaid
+graph LR
+    A[WhatsApp Message] --> B{Tipo de Mensagem}
+    B -->|Texto| C[Processamento Direto]
+    B -->|Áudio| D[Transcrição Whisper]
+    B -->|Imagem| E[Análise GPT-4 Vision]
+    B -->|Documento| F[Extração de Texto]
+    C --> G[IA Conversacional]
+    D --> G
+    E --> G
+    F --> G
+    G --> H[Resposta via WhatsApp]
+```
+
+#### **Fluxo de Agendamento Inteligente**
+
+1. **Recepção da Mensagem**
+   - Webhook do WhatsApp recebe mensagem
+   - Verificação de tipo (texto, áudio, imagem, documento)
+   - Processamento multimodal conforme necessário
+
+2. **Identificação do Cliente**
+   - Busca automática por telefone no banco
+   - Se não encontrado, ativa AgenteCriaContato
+   - Verificação de status do plano
+
+3. **Processamento da Solicitação**
+   - Análise da intenção (agendamento, consulta, informações)
+   - Coleta de dados necessários (serviço, barbeiro, data, horário)
+   - Validação de disponibilidade em tempo real
+
+4. **Validação e Confirmação**
+   - Verificação de horários disponíveis
+   - Checagem de conflitos
+   - Confirmação com o cliente
+   - Geração automática do agendamento
+
+#### **Recursos Avançados**
+
+**Buffer de Mensagens**
+- Sistema Redis para agrupar mensagens rápidas
+- Evita processamento desnecessário
+- Controle de timing para melhor experiência
+
+**Memória Conversacional**
+- PostgreSQL para manter contexto
+- Histórico de conversas por cliente
+- Personalização baseada em interações anteriores
+
+**Controle Anti-Spam**
+- Bloqueio temporário por telefone
+- Rate limiting automático
+- Proteção contra mensagens em massa
+
+**Geração de PIX Automática**
+- Integração com Asaas API
+- Criação automática de cobranças
+- QR Code e chave PIX para pagamentos
+
+#### **Integração com Sistema Principal**
+
+A IA se conecta diretamente ao banco de dados PostgreSQL do sistema principal, permitindo:
+
+- **Sincronização em Tempo Real**: Agendamentos criados via IA aparecem instantaneamente no sistema web
+- **Gestão Unificada**: Todos os dados ficam centralizados
+- **Relatórios Integrados**: Estatísticas incluem agendamentos via IA
+- **Controle de Acesso**: Mesma base de barbeiros, serviços e localizações
+
+#### **Configuração da IA**
+
+**Variáveis de Ambiente Necessárias:**
+```env
+# OpenAI
+OPENAI_API_KEY="sua-chave-openai"
+
+# Evolution API (WhatsApp)
+EVOLUTION_API_URL="https://sua-evolution-api.com"
+EVOLUTION_API_KEY="sua-chave-evolution"
+
+# Asaas (PIX)
+ASAAS_API_KEY="sua-chave-asaas"
+ASAAS_PIX_KEY="sua-chave-pix"
+
+# Redis
+REDIS_URL="redis://localhost:6379"
+
+# PostgreSQL (mesmo do sistema principal)
+DATABASE_URL="postgresql://..."
+```
+
+**Workflow n8n:**
+- Importação do JSON fornecido no n8n
+- Configuração das credenciais
+- Ativação do webhook do WhatsApp
+- Teste e monitoramento
 
 ## 📁 Estrutura do Projeto
 
@@ -477,14 +640,25 @@ CMD ["npm", "start"]
 
 ## 📈 Próximas Funcionalidades
 
+### Sistema Web
 - [ ] Sistema de notificações push
-- [ ] Integração com WhatsApp
 - [ ] Relatórios avançados com gráficos
 - [ ] Sistema de backup automático
 - [ ] API para aplicativo mobile
-- [ ] Integração com gateways de pagamento
 - [ ] Sistema de avaliações
 - [ ] Gestão de estoque de produtos
+
+### Módulo de IA
+- [ ] **Integração com WhatsApp** ✅ (Já implementado)
+- [ ] **Integração com gateways de pagamento** ✅ (PIX já implementado)
+- [ ] Reconhecimento de voz em tempo real
+- [ ] Análise de sentimento das conversas
+- [ ] Sugestões automáticas de horários
+- [ ] Lembretes automáticos via WhatsApp
+- [ ] Integração com Google Calendar
+- [ ] Chatbot para dúvidas frequentes
+- [ ] Análise de padrões de agendamento
+- [ ] Sistema de fidelidade automatizado
 
 ## 🤝 Contribuição
 
