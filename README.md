@@ -35,20 +35,20 @@ O Sistema de Gestão de Barbearia é uma aplicação web moderna com **Inteligê
 
 ```mermaid
 graph TB
-    subgraph "Frontend (Next.js 15)"
+    subgraph Frontend["Frontend (Next.js 15)"]
         A[Páginas React] --> B[Componentes UI]
         B --> C[Hooks Customizados]
         C --> D[API Client]
     end
     
-    subgraph "Backend (Next.js API Routes)"
+    subgraph Backend["Backend (Next.js API Routes)"]
         D --> E[API Routes]
         E --> F[Middleware de Autenticação]
         F --> G[Validação de Dados]
         G --> H[Prisma ORM]
     end
     
-    subgraph "Banco de Dados"
+    subgraph Database["Banco de Dados"]
         H --> I[(PostgreSQL)]
         I --> J[Tabelas Principais]
         J --> K[barbers]
@@ -59,7 +59,7 @@ graph TB
         J --> P[locations]
     end
     
-    subgraph "Módulo de IA (n8n + OpenAI)"
+    subgraph AI["Módulo de IA (n8n + OpenAI)"]
         WA[WhatsApp Webhook] --> WB[Processamento de Mensagens]
         WB --> WC[Transcrição de Áudio]
         WB --> WD[Análise de Imagens]
@@ -76,20 +76,20 @@ graph TB
         WK --> WL
     end
     
-    subgraph "Serviços Externos"
+    subgraph External["Serviços Externos"]
         XA[Evolution API] --> XB[WhatsApp Business]
         XC[OpenAI GPT-4] --> XD[Transcrição e Análise]
         XE[Asaas API] --> XF[Geração de PIX]
         XG[Redis] --> XH[Cache e Buffer]
     end
     
-    subgraph "Autenticação"
+    subgraph Auth["Autenticação"]
         Q[Login Form] --> R[bcrypt Hash]
         R --> S[LocalStorage]
         S --> T[Session Management]
     end
     
-    subgraph "UI/UX"
+    subgraph UI["UI/UX"]
         U[Tailwind CSS] --> V[Radix UI Components]
         V --> W[Lucide Icons]
         W --> X[Responsive Design]
