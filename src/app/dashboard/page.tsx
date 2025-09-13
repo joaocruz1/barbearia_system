@@ -1,129 +1,193 @@
-"use client"
+"use client";
 
-import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
-import { SidebarProvider } from "@/components/ui/sidebar"
-import { AppSidebar } from "@/components/app-sidebar"
-import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
-import { Separator } from "@/components/ui/separator"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Calendar, Clock, DollarSign, TrendingUp, MapPin, Scissors, Star, Plus, Filter, X, CheckCircle, CreditCard } from "lucide-react"
-import { useApi } from "@/hooks/use-api"
-import { dashboardApi, plansApi, locationsApi, appointmentsApi, type DashboardStats, type Plan, type Location } from "@/lib/api"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { toast } from "sonner" // Importando toast do sonner
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { SidebarProvider } from "@/components/ui/sidebar";
+import { AppSidebar } from "@/components/app-sidebar";
+import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
+import { Separator } from "@/components/ui/separator";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Calendar,
+  Clock,
+  DollarSign,
+  TrendingUp,
+  MapPin,
+  Scissors,
+  Star,
+  Plus,
+  Filter,
+  X,
+  CheckCircle,
+  CreditCard,
+} from "lucide-react";
+import { useApi } from "@/hooks/use-api";
+import {
+  dashboardApi,
+  plansApi,
+  locationsApi,
+  appointmentsApi,
+  type DashboardStats,
+  type Plan,
+  type Location,
+} from "@/lib/api";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { toast } from "sonner"; // Importando toast do sonner
 
 export default function DashboardPage() {
-  const [barberId, setBarberId] = useState<string | null>(null)
-  const [location, setLocation] = useState<string | null>(null)
-  const [selectedLocationFilter, setSelectedLocationFilter] = useState<string>("all")
-  const router = useRouter()
+  const [barberId, setBarberId] = useState<string | null>(null);
+  const [location, setLocation] = useState<string | null>(null);
+  const [selectedLocationFilter, setSelectedLocationFilter] =
+    useState<string>("all");
+  const router = useRouter();
 
-  const [barberName, setBarberName] = useState<string | null>(null)
-  const [refreshKey, setRefreshKey] = useState(0)
+  const [barberName, setBarberName] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
-    const storedBarberId = localStorage.getItem("barberId")
-    const storedLocation = localStorage.getItem("barberLocation")
-    const storedBarberName = localStorage.getItem("barberName")
-    
+    const storedBarberId = localStorage.getItem("barberId");
+    const storedLocation = localStorage.getItem("barberLocation");
+    const storedBarberName = localStorage.getItem("barberName");
+
     console.log("Dashboard - Dados do localStorage:", {
       barberId: storedBarberId,
       location: storedLocation,
-      barberName: storedBarberName
-    })
-    
+      barberName: storedBarberName,
+    });
+
     if (!storedBarberId || !storedLocation) {
-      console.log("Dashboard - Dados faltando, redirecionando para login")
-      router.push("/")
+      console.log("Dashboard - Dados faltando, redirecionando para login");
+      router.push("/");
       // Adicionando um toast informativo se o usuário for redirecionado
       toast.info("Acesso Restrito", {
         description: "Você precisa estar logado para acessar o painel.",
         duration: 3000,
       });
     } else {
-      console.log("Dashboard - Dados encontrados, configurando estado")
-      setBarberId(storedBarberId)
-      setLocation(storedLocation)
-      setBarberName(storedBarberName)
+      console.log("Dashboard - Dados encontrados, configurando estado");
+      setBarberId(storedBarberId);
+      setLocation(storedLocation);
+      setBarberName(storedBarberName);
     }
-  }, [router])
+  }, [router]);
 
   // Debug: useEffect para monitorar mudanças nos estados
   useEffect(() => {
     console.log("Dashboard - Estados atualizados:", {
       barberId,
       location,
-      barberName
-    })
-  }, [barberId, location, barberName])
+      barberName,
+    });
+  }, [barberId, location, barberName]);
 
   // Funções para ações rápidas
-  const handleCancelAppointment = async (appointmentId: string, clientName: string) => {
+  const handleCancelAppointment = async (
+    appointmentId: string,
+    clientName: string
+  ) => {
     try {
-      console.log("Cancelando agendamento:", appointmentId, "para cliente:", clientName)
-      await appointmentsApi.cancel(appointmentId)
-      console.log("Agendamento cancelado com sucesso, atualizando dashboard...")
+      console.log(
+        "Cancelando agendamento:",
+        appointmentId,
+        "para cliente:",
+        clientName
+      );
+      await appointmentsApi.cancel(appointmentId);
+      console.log(
+        "Agendamento cancelado com sucesso, atualizando dashboard..."
+      );
       toast.success("Agendamento Cancelado", {
         description: `O agendamento de ${clientName} foi cancelado com sucesso.`,
         duration: 3000,
-      })
-      setRefreshKey(prev => prev + 1) // Forçar reload dos dados
-      console.log("Dashboard atualizado após cancelamento")
+      });
+      setRefreshKey((prev) => prev + 1); // Forçar reload dos dados
+      console.log("Dashboard atualizado após cancelamento");
     } catch (error) {
-      console.error("Erro ao cancelar agendamento:", error)
+      console.error("Erro ao cancelar agendamento:", error);
       toast.error("Erro ao Cancelar", {
-        description: "Não foi possível cancelar o agendamento. Tente novamente.",
+        description:
+          "Não foi possível cancelar o agendamento. Tente novamente.",
         duration: 3000,
-      })
+      });
     }
-  }
+  };
 
-  const handleMarkAsPaid = async (appointmentId: string, clientName: string) => {
+  const handleMarkAsPaid = async (
+    appointmentId: string,
+    clientName: string
+  ) => {
     try {
-      console.log("Marcando como pago:", appointmentId, "para cliente:", clientName)
+      console.log(
+        "Marcando como pago:",
+        appointmentId,
+        "para cliente:",
+        clientName
+      );
       await appointmentsApi.update(appointmentId, {
-        paymentStatus: "paid"
-      })
-      console.log("Pagamento marcado com sucesso, atualizando dashboard...")
+        paymentStatus: "paid",
+      });
+      console.log("Pagamento marcado com sucesso, atualizando dashboard...");
       toast.success("Pagamento Confirmado", {
         description: `O pagamento de ${clientName} foi marcado como realizado.`,
         duration: 3000,
-      })
-      setRefreshKey(prev => prev + 1) // Forçar reload dos dados
-      console.log("Dashboard atualizado após marcar como pago")
+      });
+      setRefreshKey((prev) => prev + 1); // Forçar reload dos dados
+      console.log("Dashboard atualizado após marcar como pago");
     } catch (error) {
-      console.error("Erro ao marcar como pago:", error)
+      console.error("Erro ao marcar como pago:", error);
       toast.error("Erro ao Marcar Pagamento", {
         description: "Não foi possível marcar o pagamento. Tente novamente.",
         duration: 3000,
-      })
+      });
     }
-  }
+  };
 
-  const handleMarkAsCompleted = async (appointmentId: string, clientName: string) => {
+  const handleMarkAsCompleted = async (
+    appointmentId: string,
+    clientName: string
+  ) => {
     try {
-      console.log("Marcando como concluído:", appointmentId, "para cliente:", clientName)
+      console.log(
+        "Marcando como concluído:",
+        appointmentId,
+        "para cliente:",
+        clientName
+      );
       await appointmentsApi.update(appointmentId, {
-        status: "completed"
-      })
-      console.log("Serviço marcado como concluído com sucesso, atualizando dashboard...")
+        status: "completed",
+      });
+      console.log(
+        "Serviço marcado como concluído com sucesso, atualizando dashboard..."
+      );
       toast.success("Serviço Concluído", {
         description: `O serviço de ${clientName} foi marcado como concluído.`,
         duration: 3000,
-      })
-      setRefreshKey(prev => prev + 1) // Forçar reload dos dados
-      console.log("Dashboard atualizado após marcar como concluído")
+      });
+      setRefreshKey((prev) => prev + 1); // Forçar reload dos dados
+      console.log("Dashboard atualizado após marcar como concluído");
     } catch (error) {
-      console.error("Erro ao marcar como concluído:", error)
+      console.error("Erro ao marcar como concluído:", error);
       toast.error("Erro ao Concluir Serviço", {
-        description: "Não foi possível marcar o serviço como concluído. Tente novamente.",
+        description:
+          "Não foi possível marcar o serviço como concluído. Tente novamente.",
         duration: 3000,
-      })
+      });
     }
-  }
+  };
 
   // Fetch dashboard stats APENAS do barbeiro logado
   const {
@@ -132,22 +196,34 @@ export default function DashboardPage() {
     error: statsError,
     refetch: refetchStats,
   } = useApi<DashboardStats>(
-    barberId ? () =>
-      dashboardApi.getStats({
-        barberId: barberId, // Sempre filtrar pelo barbeiro logado
-        date: new Date().toISOString().split("T")[0],
-      }) : null,
-    [barberId, refreshKey],
-  )
+    barberId
+      ? () =>
+          dashboardApi.getStats({
+            barberId: barberId, // Sempre filtrar pelo barbeiro logado
+            date: new Date().toISOString().split("T")[0],
+          })
+      : null,
+    [barberId, refreshKey]
+  );
 
   // Fetch plans
-  const { data: plans, loading: plansLoading } = useApi<Plan[]>(() => plansApi.getAll(), [])
+  const { data: plans, loading: plansLoading } = useApi<Plan[]>(
+    () => plansApi.getAll(),
+    []
+  );
 
   // Fetch locations for filter
-  const { data: locations } = useApi<Location[]>(() => locationsApi.getAll(), [])
+  const { data: locations } = useApi<Location[]>(
+    () => locationsApi.getAll(),
+    []
+  );
 
   if (!barberId || !location) {
-    console.log("Dashboard - Renderizando loading, dados:", { barberId, location, barberName })
+    console.log("Dashboard - Renderizando loading, dados:", {
+      barberId,
+      location,
+      barberName,
+    });
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
@@ -155,61 +231,68 @@ export default function DashboardPage() {
           <p>Carregando...</p>
         </div>
       </div>
-    )
+    );
   }
 
   if (statsError) {
     // Usando toast.error para exibir o erro ao carregar os dados
     toast.error("Erro ao carregar dados", {
-      description: `Não foi possível carregar as estatísticas. Tente novamente. Detalhes: ${statsError || "Erro desconhecido."}`,
+      description: `Não foi possível carregar as estatísticas. Tente novamente. Detalhes: ${
+        statsError || "Erro desconhecido."
+      }`,
       duration: 5000,
     });
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <p className="text-red-600 mb-4">Ocorreu um erro ao carregar o painel.</p>
-          <Button onClick={refetchStats} className="bg-black hover:bg-gray-800 text-white">
+          <p className="text-red-600 mb-4">
+            Ocorreu um erro ao carregar o painel.
+          </p>
+          <Button
+            onClick={refetchStats}
+            className="bg-black hover:bg-gray-800 text-white"
+          >
             Tentar Novamente
           </Button>
         </div>
       </div>
-    )
+    );
   }
-
-
 
   const getLocationName = (id: string) => {
     const names: { [key: string]: string } = {
       "rua13-ouro-fino": "Rua 13 - Ouro Fino",
       "avenida-ouro-fino": "Avenida - Ouro Fino",
       inconfidentes: "Inconfidentes",
-    }
-    return names[id] || id
-  }
+    };
+    return names[id] || id;
+  };
 
   // Filtrar agendamentos por localidade se selecionado
   const filteredAppointments =
     dashboardStats?.appointments.filter((appointment) => {
-      if (selectedLocationFilter === "all") return true
-      return appointment.location.id === selectedLocationFilter
-    }) || []
+      if (selectedLocationFilter === "all") return true;
+      return appointment.location.id === selectedLocationFilter;
+    }) || [];
 
   // Log antes da renderização
-  console.log("Dashboard - Renderizando com dados:", { 
-    barberId, 
-    location, 
+  console.log("Dashboard - Renderizando com dados:", {
+    barberId,
+    location,
     barberName,
     statsLoading,
-    dashboardStats: dashboardStats ? {
-      appointmentsCount: dashboardStats.appointments.length,
-      appointments: dashboardStats.appointments.map(a => ({
-        id: a.id,
-        clientName: a.client.name,
-        status: a.status,
-        paymentStatus: a.paymentStatus
-      }))
-    } : null
-  })
+    dashboardStats: dashboardStats
+      ? {
+          appointmentsCount: dashboardStats.appointments.length,
+          appointments: dashboardStats.appointments.map((a) => ({
+            id: a.id,
+            clientName: a.client.name,
+            status: a.status,
+            paymentStatus: a.paymentStatus,
+          })),
+        }
+      : null,
+  });
 
   return (
     <SidebarProvider>
@@ -237,25 +320,36 @@ export default function DashboardPage() {
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <Card className="border border-gray-200 shadow-lg bg-white">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-gray-600">Meus Agendamentos Hoje</CardTitle>
+                <CardTitle className="text-sm font-medium text-gray-600">
+                  Meus Agendamentos Hoje
+                </CardTitle>
                 <Calendar className="h-4 w-4 text-black" />
               </CardHeader>
               <CardContent>
                 <div className="text-3xl font-bold text-black">
-                  {statsLoading ? "..." : dashboardStats?.today.appointments || 0}
+                  {statsLoading
+                    ? "..."
+                    : dashboardStats?.today.appointments || 0}
                 </div>
-                <p className="text-xs text-gray-500">Apenas seus agendamentos</p>
+                <p className="text-xs text-gray-500">
+                  Apenas seus agendamentos
+                </p>
               </CardContent>
             </Card>
 
             <Card className="border border-gray-200 shadow-lg bg-white">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-gray-600">Minha Receita Hoje</CardTitle>
+                <CardTitle className="text-sm font-medium text-gray-600">
+                  Minha Receita Hoje
+                </CardTitle>
                 <DollarSign className="h-4 w-4 text-black" />
               </CardHeader>
               <CardContent>
                 <div className="text-3xl font-bold text-black">
-                  R$ {statsLoading ? "..." : dashboardStats?.today.revenue.toFixed(2) || "0.00"}
+                  R${" "}
+                  {statsLoading
+                    ? "..."
+                    : dashboardStats?.today.revenue.toFixed(2) || "0.00"}
                 </div>
                 <p className="text-xs text-gray-500">Apenas serviços avulsos</p>
               </CardContent>
@@ -263,7 +357,9 @@ export default function DashboardPage() {
 
             <Card className="border border-gray-200 shadow-lg bg-white">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-gray-600">Meus Clientes VIP</CardTitle>
+                <CardTitle className="text-sm font-medium text-gray-600">
+                  Meus Clientes VIP
+                </CardTitle>
                 <Star className="h-4 w-4 text-black" />
               </CardHeader>
               <CardContent>
@@ -276,12 +372,18 @@ export default function DashboardPage() {
 
             <Card className="border border-gray-200 shadow-lg bg-white">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-gray-600">Minhas Localidades</CardTitle>
+                <CardTitle className="text-sm font-medium text-gray-600">
+                  Minhas Localidades
+                </CardTitle>
                 <TrendingUp className="h-4 w-4 text-black" />
               </CardHeader>
               <CardContent>
                 <div className="text-3xl font-bold text-black">
-                  {statsLoading ? "..." : new Set(dashboardStats?.appointments.map((a) => a.location.name)).size || 0}
+                  {statsLoading
+                    ? "..."
+                    : new Set(
+                        dashboardStats?.appointments.map((a) => a.location.name)
+                      ).size || 0}
                 </div>
                 <p className="text-xs text-gray-500">Com agendamentos hoje</p>
               </CardContent>
@@ -295,13 +397,18 @@ export default function DashboardPage() {
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div>
-                      <CardTitle className="text-xl text-black">Seus Agendamentos de Hoje</CardTitle>
+                      <CardTitle className="text-xl text-black">
+                        Seus Agendamentos de Hoje
+                      </CardTitle>
                       <CardDescription className="text-gray-600">
                         Todos os seus atendimentos programados
                       </CardDescription>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Select value={selectedLocationFilter} onValueChange={setSelectedLocationFilter}>
+                      <Select
+                        value={selectedLocationFilter}
+                        onValueChange={setSelectedLocationFilter}
+                      >
                         <SelectTrigger className="w-40 border-gray-300 focus:border-black">
                           <Filter className="h-4 w-4 mr-2" />
                           <SelectValue />
@@ -345,7 +452,9 @@ export default function DashboardPage() {
                       <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
                       <p>Nenhum agendamento para hoje</p>
                       {selectedLocationFilter !== "all" && (
-                        <p className="text-sm mt-2">Tente remover o filtro de localidade</p>
+                        <p className="text-sm mt-2">
+                          Tente remover o filtro de localidade
+                        </p>
                       )}
                     </div>
                   ) : (
@@ -361,22 +470,30 @@ export default function DashboardPage() {
                             </div>
                             <div>
                               <div className="flex items-center gap-2 mb-1">
-                                <p className="font-semibold text-black text-lg">{appointment.client.name}</p>
-                                {appointment.client.plan && appointment.client.plan.name !== "Avulso" && (
-                                  <Star className="h-4 w-4 text-yellow-500" />
-                                )}
+                                <p className="font-semibold text-black text-lg">
+                                  {appointment.client.name}
+                                </p>
+                                {appointment.client.plan &&
+                                  appointment.client.plan.name !== "Avulso" && (
+                                    <Star className="h-4 w-4 text-yellow-500" />
+                                  )}
                               </div>
-                              <p className="text-sm text-gray-600 mb-2">{appointment.service.name}</p>
+                              <p className="text-sm text-gray-600 mb-2">
+                                {appointment.service.name}
+                              </p>
                               <div className="flex items-center space-x-4 text-xs text-gray-500">
                                 <div className="flex items-center space-x-1">
                                   <Clock className="h-3 w-3" />
                                   <span className="font-medium">
-                                    {appointment.startTime} ({appointment.service.durationMinutes}min)
+                                    {appointment.startTime} (
+                                    {appointment.service.durationMinutes}min)
                                   </span>
                                 </div>
                                 <div className="flex items-center space-x-1">
                                   <MapPin className="h-3 w-3" />
-                                  <span className="font-medium">{appointment.location.name}</span>
+                                  <span className="font-medium">
+                                    {appointment.location.name}
+                                  </span>
                                 </div>
                               </div>
                             </div>
@@ -384,7 +501,11 @@ export default function DashboardPage() {
                           <div className="flex flex-col items-end space-y-3">
                             <div className="flex flex-col items-end space-y-2">
                               <Badge
-                                variant={appointment.client.plan?.name === "Avulso" ? "outline" : "default"}
+                                variant={
+                                  appointment.client.plan?.name === "Avulso"
+                                    ? "outline"
+                                    : "default"
+                                }
                                 className={
                                   appointment.client.plan?.name !== "Avulso"
                                     ? "bg-black text-white"
@@ -395,14 +516,16 @@ export default function DashboardPage() {
                               </Badge>
                               <Badge
                                 variant={
-                                  appointment.status === "confirmed" || appointment.status === "scheduled"
+                                  appointment.status === "confirmed" ||
+                                  appointment.status === "scheduled"
                                     ? "default"
                                     : appointment.status === "completed"
                                     ? "default"
                                     : "secondary"
                                 }
                                 className={
-                                  appointment.status === "confirmed" || appointment.status === "scheduled"
+                                  appointment.status === "confirmed" ||
+                                  appointment.status === "scheduled"
                                     ? "bg-green-600 text-white"
                                     : appointment.status === "completed"
                                     ? "bg-blue-600 text-white"
@@ -411,7 +534,8 @@ export default function DashboardPage() {
                                     : "bg-gray-200 text-gray-700"
                                 }
                               >
-                                {appointment.status === "confirmed" || appointment.status === "scheduled"
+                                {appointment.status === "confirmed" ||
+                                appointment.status === "scheduled"
                                   ? "Confirmado"
                                   : appointment.status === "completed"
                                   ? "Concluído"
@@ -438,43 +562,59 @@ export default function DashboardPage() {
                                 </Badge>
                               )}
                             </div>
-                            
+
                             {/* Botões de Ação Rápida */}
-                            {appointment.status !== "cancelled" && appointment.status !== "completed" && (
-                              <div className="flex gap-2">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-8 px-2 text-red-600 border-red-300 hover:bg-red-50"
-                                  onClick={() => handleCancelAppointment(appointment.id, appointment.client.name)}
-                                  title="Cancelar Agendamento"
-                                >
-                                  <X className="h-3 w-3" />
-                                </Button>
-                                
-                                {appointment.paymentStatus !== "paid" && (
+                            {appointment.status !== "cancelled" &&
+                              appointment.status !== "completed" && (
+                                <div className="flex gap-2">
                                   <Button
                                     size="sm"
                                     variant="outline"
-                                    className="h-8 px-2 text-green-600 border-green-300 hover:bg-green-50"
-                                    onClick={() => handleMarkAsPaid(appointment.id, appointment.client.name)}
-                                    title="Marcar como Pago"
+                                    className="h-8 px-2 text-red-600 border-red-300 hover:bg-red-50"
+                                    onClick={() =>
+                                      handleCancelAppointment(
+                                        appointment.id,
+                                        appointment.client.name
+                                      )
+                                    }
+                                    title="Cancelar Agendamento"
                                   >
-                                    <CreditCard className="h-3 w-3" />
+                                    <X className="h-3 w-3" />
                                   </Button>
-                                )}
-                                
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-8 px-2 text-blue-600 border-blue-300 hover:bg-blue-50"
-                                  onClick={() => handleMarkAsCompleted(appointment.id, appointment.client.name)}
-                                  title="Marcar como Concluído"
-                                >
-                                  <CheckCircle className="h-3 w-3" />
-                                </Button>
-                              </div>
-                            )}
+
+                                  {appointment.paymentStatus !== "paid" && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-8 px-2 text-green-600 border-green-300 hover:bg-green-50"
+                                      onClick={() =>
+                                        handleMarkAsPaid(
+                                          appointment.id,
+                                          appointment.client.name
+                                        )
+                                      }
+                                      title="Marcar como Pago"
+                                    >
+                                      <CreditCard className="h-3 w-3" />
+                                    </Button>
+                                  )}
+
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-8 px-2 text-blue-600 border-blue-300 hover:bg-blue-50"
+                                    onClick={() =>
+                                      handleMarkAsCompleted(
+                                        appointment.id,
+                                        appointment.client.name
+                                      )
+                                    }
+                                    title="Marcar como Concluído"
+                                  >
+                                    <CheckCircle className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              )}
                           </div>
                         </div>
                       ))}
@@ -488,8 +628,12 @@ export default function DashboardPage() {
             <div>
               <Card className="border border-gray-200 shadow-lg bg-white">
                 <CardHeader>
-                  <CardTitle className="text-xl text-black">Planos Clube Couto</CardTitle>
-                  <CardDescription className="text-gray-600">Planos disponíveis para clientes</CardDescription>
+                  <CardTitle className="text-xl text-black">
+                    Planos Clube Couto
+                  </CardTitle>
+                  <CardDescription className="text-gray-600">
+                    Planos disponíveis para clientes
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
                   {plansLoading ? (
@@ -506,24 +650,35 @@ export default function DashboardPage() {
                         ?.filter((plan) => plan.name !== "Avulso")
                         .map((plan) => {
                           const getColorClass = (name: string) => {
-                            if (name.includes("Premium")) return "bg-black"
-                            if (name.includes("Cabelo")) return "bg-gray-800"
-                            if (name.includes("Barba")) return "bg-gray-600"
-                            return "bg-gray-500"
-                          }
+                            if (name.includes("Premium")) return "bg-black";
+                            if (name.includes("Cabelo")) return "bg-gray-800";
+                            if (name.includes("Barba")) return "bg-gray-600";
+                            return "bg-gray-500";
+                          };
 
                           return (
-                            <div key={plan.id} className={`p-4 rounded-xl text-white ${getColorClass(plan.name)}`}>
+                            <div
+                              key={plan.id}
+                              className={`p-4 rounded-xl text-white ${getColorClass(
+                                plan.name
+                              )}`}
+                            >
                               <h3 className="font-semibold">{plan.name}</h3>
-                              <p className="text-2xl font-bold">R$ {Number(plan.price).toFixed(2)}</p>
+                              <p className="text-2xl font-bold">
+                                R$ {Number(plan.price).toFixed(2)}
+                              </p>
                               <p className="text-xs opacity-90">por mês</p>
-                              <p className="text-xs opacity-75 mt-1">{plan._count?.clients || 0} assinantes</p>
+                              <p className="text-xs opacity-75 mt-1">
+                                {plan._count?.clients || 0} assinantes
+                              </p>
                             </div>
-                          )
+                          );
                         })}
                       <div className="p-4 border-2 border-dashed border-gray-300 rounded-xl text-center bg-gray-50">
                         <p className="text-sm text-gray-600">Promoção Ativa</p>
-                        <p className="font-semibold text-black">50% OFF primeiro mês</p>
+                        <p className="font-semibold text-black">
+                          50% OFF primeiro mês
+                        </p>
                       </div>
                     </div>
                   )}
@@ -534,5 +689,5 @@ export default function DashboardPage() {
         </div>
       </SidebarInset>
     </SidebarProvider>
-  )
+  );
 }

@@ -128,7 +128,8 @@ export default function AppointmentsPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
+  const [editingAppointment, setEditingAppointment] =
+    useState<Appointment | null>(null);
   const [barberId, setBarberId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("");
@@ -167,13 +168,13 @@ export default function AppointmentsPage() {
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const selectedDate = e.target.value;
       setNewAppointment((prev) => ({ ...prev, date: selectedDate }));
-      
+
       // Validar se a data é no passado
       const today = new Date();
       const selected = new Date(selectedDate);
       today.setHours(0, 0, 0, 0);
       selected.setHours(0, 0, 0, 0);
-      
+
       if (selected < today) {
         setDateError("Não é possível agendar para uma data no passado");
       } else {
@@ -187,14 +188,16 @@ export default function AppointmentsPage() {
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const selectedTime = e.target.value;
       setNewAppointment((prev) => ({ ...prev, time: selectedTime }));
-      
+
       // Validar se o horário é no passado (só se a data for hoje)
       if (selectedTime && newAppointment.date) {
         const today = new Date().toISOString().split("T")[0];
         if (newAppointment.date === today) {
           const now = new Date();
-          const selectedDateTime = new Date(`${newAppointment.date}T${selectedTime}`);
-          
+          const selectedDateTime = new Date(
+            `${newAppointment.date}T${selectedTime}`
+          );
+
           if (selectedDateTime < now) {
             setTimeError("Não é possível agendar para um horário no passado");
           } else {
@@ -277,7 +280,7 @@ export default function AppointmentsPage() {
     if (!barberId) {
       return Promise.resolve([]);
     }
-    
+
     const startDate = formatDateForAPI(weekDates[0]);
     const endDate = formatDateForAPI(weekDates[6]);
     return appointmentsApi.getAll({
@@ -424,15 +427,20 @@ export default function AppointmentsPage() {
       refetchAppointments();
     } catch (error: any) {
       console.error("Erro ao criar agendamento:", error);
-      
+
       // Verificar se é erro de conflito de horário
-      if (error?.status === 400 && error?.message === "Time slot is already booked") {
+      if (
+        error?.status === 400 &&
+        error?.message === "Time slot is already booked"
+      ) {
         toast.error("Horário Ocupado", {
-          description: "Já existe um agendamento neste horário. Escolha outro horário disponível.",
+          description:
+            "Já existe um agendamento neste horário. Escolha outro horário disponível.",
         });
       } else {
         toast.error("Erro", {
-          description: error?.message || "Falha ao criar agendamento. Tente novamente.",
+          description:
+            error?.message || "Falha ao criar agendamento. Tente novamente.",
         });
       }
     }
@@ -514,9 +522,10 @@ export default function AppointmentsPage() {
         clientId: appointment.clientId,
         serviceId: appointment.serviceId,
         barberId: appointment.barberId,
-        date: typeof appointment.appointmentDate === 'string' 
-          ? appointment.appointmentDate
-          : (appointment.appointmentDate as Date).toISOString().split("T")[0],
+        date:
+          typeof appointment.appointmentDate === "string"
+            ? appointment.appointmentDate
+            : (appointment.appointmentDate as Date).toISOString().split("T")[0],
         time: appointment.startTime,
         paymentMethod: appointment.paymentMethod || "",
         notes: appointment.notes || "",
@@ -650,15 +659,21 @@ export default function AppointmentsPage() {
       refetchAppointments();
     } catch (error: any) {
       console.error("Erro ao atualizar agendamento:", error);
-      
+
       // Verificar se é erro de conflito de horário
-      if (error?.status === 400 && error?.message === "Time slot is already booked") {
+      if (
+        error?.status === 400 &&
+        error?.message === "Time slot is already booked"
+      ) {
         toast.error("Horário Ocupado", {
-          description: "Já existe um agendamento neste horário. Escolha outro horário disponível.",
+          description:
+            "Já existe um agendamento neste horário. Escolha outro horário disponível.",
         });
       } else {
         toast.error("Erro", {
-          description: error?.message || "Falha ao atualizar agendamento. Tente novamente.",
+          description:
+            error?.message ||
+            "Falha ao atualizar agendamento. Tente novamente.",
         });
       }
     }
@@ -674,54 +689,66 @@ export default function AppointmentsPage() {
   ]);
 
   // Função específica para drag & drop - atualiza apenas data e horário
-  const handleUpdateAppointmentDragDrop = useCallback(async (appointment: Appointment) => {
-    console.log("🔄 handleUpdateAppointmentDragDrop chamado para:", appointment.client.name);
-    
-    // Salvar posição atual do scroll
-    const currentScrollTop = document.documentElement.scrollTop || document.body.scrollTop;
-    const currentScrollLeft = document.documentElement.scrollLeft || document.body.scrollLeft;
-    
-    try {
-      await appointmentsApi.update(appointment.id, {
-        appointmentDate: appointment.appointmentDate,
-        startTime: appointment.startTime,
-        endTime: appointment.endTime,
-        status: appointment.status,
-        notes: appointment.notes,
-      });
+  const handleUpdateAppointmentDragDrop = useCallback(
+    async (appointment: Appointment) => {
+      console.log(
+        "🔄 handleUpdateAppointmentDragDrop chamado para:",
+        appointment.client.name
+      );
 
-      toast.success("Sucesso", {
-        description: `Agendamento de ${appointment.client.name} movido com sucesso!`,
-      });
+      // Salvar posição atual do scroll
+      const currentScrollTop =
+        document.documentElement.scrollTop || document.body.scrollTop;
+      const currentScrollLeft =
+        document.documentElement.scrollLeft || document.body.scrollLeft;
 
-      // Recarregar agendamentos
-      await refetchAppointments();
-      
-      // Restaurar posição do scroll após um pequeno delay para garantir que o DOM foi atualizado
-      setTimeout(() => {
-        window.scrollTo({
-          top: currentScrollTop,
-          left: currentScrollLeft,
-          behavior: 'instant' // Usar 'instant' para não ter animação
+      try {
+        await appointmentsApi.update(appointment.id, {
+          appointmentDate: appointment.appointmentDate,
+          startTime: appointment.startTime,
+          endTime: appointment.endTime,
+          status: appointment.status,
+          notes: appointment.notes,
         });
-      }, 100);
-      
-    } catch (error: any) {
-      console.error("❌ Erro ao mover agendamento:", error);
-      
-      // Verificar se é erro de conflito de horário
-      if (error?.status === 400 && error?.message === "Time slot is already booked") {
-        toast.error("Horário Ocupado", {
-          description: "Já existe um agendamento neste horário. Escolha outro horário disponível.",
+
+        toast.success("Sucesso", {
+          description: `Agendamento de ${appointment.client.name} movido com sucesso!`,
         });
-      } else {
-        toast.error("Erro", {
-          description: error?.message || "Falha ao mover agendamento. Tente novamente.",
-        });
+
+        // Recarregar agendamentos
+        await refetchAppointments();
+
+        // Restaurar posição do scroll após um pequeno delay para garantir que o DOM foi atualizado
+        setTimeout(() => {
+          window.scrollTo({
+            top: currentScrollTop,
+            left: currentScrollLeft,
+            behavior: "instant", // Usar 'instant' para não ter animação
+          });
+        }, 100);
+      } catch (error: any) {
+        console.error("❌ Erro ao mover agendamento:", error);
+
+        // Verificar se é erro de conflito de horário
+        if (
+          error?.status === 400 &&
+          error?.message === "Time slot is already booked"
+        ) {
+          toast.error("Horário Ocupado", {
+            description:
+              "Já existe um agendamento neste horário. Escolha outro horário disponível.",
+          });
+        } else {
+          toast.error("Erro", {
+            description:
+              error?.message || "Falha ao mover agendamento. Tente novamente.",
+          });
+        }
+        throw error; // Re-throw para que o componente possa lidar com o erro
       }
-      throw error; // Re-throw para que o componente possa lidar com o erro
-    }
-  }, [refetchAppointments]);
+    },
+    [refetchAppointments]
+  );
 
   return (
     <SidebarProvider>
@@ -966,7 +993,9 @@ export default function AppointmentsPage() {
                           value={newAppointment.date}
                           onChange={handleDateChange}
                           className={`h-10 bg-background border-border focus:border-primary focus:ring-ring ${
-                            dateError ? "border-red-500 focus:border-red-500" : ""
+                            dateError
+                              ? "border-red-500 focus:border-red-500"
+                              : ""
                           }`}
                         />
                         {dateError && (
@@ -990,7 +1019,9 @@ export default function AppointmentsPage() {
                           value={newAppointment.time}
                           onChange={handleTimeChange}
                           className={`h-10 bg-background border-border focus:border-primary focus:ring-ring ${
-                            timeError ? "border-red-500 focus:border-red-500" : ""
+                            timeError
+                              ? "border-red-500 focus:border-red-500"
+                              : ""
                           }`}
                         />
                         {timeError && (
@@ -1057,7 +1088,10 @@ export default function AppointmentsPage() {
               </Dialog>
 
               {/* Modal de Edição */}
-              <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+              <Dialog
+                open={isEditDialogOpen}
+                onOpenChange={setIsEditDialogOpen}
+              >
                 <DialogContent className="max-w-lg bg-card border shadow-lg">
                   <DialogHeader className="space-y-3">
                     <DialogTitle className="text-xl font-semibold text-card-foreground flex items-center gap-2">
@@ -1065,7 +1099,8 @@ export default function AppointmentsPage() {
                       Editar Agendamento
                     </DialogTitle>
                     <DialogDescription className="text-muted-foreground">
-                      Edite os dados do agendamento de {editingAppointment?.client.name}
+                      Edite os dados do agendamento de{" "}
+                      {editingAppointment?.client.name}
                     </DialogDescription>
                   </DialogHeader>
 
@@ -1205,7 +1240,9 @@ export default function AppointmentsPage() {
                           value={newAppointment.date}
                           onChange={handleDateChange}
                           className={`h-10 bg-background border-border focus:border-primary focus:ring-ring ${
-                            dateError ? "border-red-500 focus:border-red-500" : ""
+                            dateError
+                              ? "border-red-500 focus:border-red-500"
+                              : ""
                           }`}
                         />
                         {dateError && (
@@ -1229,7 +1266,9 @@ export default function AppointmentsPage() {
                           value={newAppointment.time}
                           onChange={handleTimeChange}
                           className={`h-10 bg-background border-border focus:border-primary focus:ring-ring ${
-                            timeError ? "border-red-500 focus:border-red-500" : ""
+                            timeError
+                              ? "border-red-500 focus:border-red-500"
+                              : ""
                           }`}
                         />
                         {timeError && (

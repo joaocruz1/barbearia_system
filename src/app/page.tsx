@@ -1,88 +1,78 @@
-"use client"
+"use client";
 
-import type React from "react"
+import type React from "react";
 
-import { useState } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Scissors, User, Lock, MapPin } from "lucide-react"
-import { useRouter } from "next/navigation"
-
-const locations = [
-  { id: "8cecb648-ad70-433a-9841-1717e2b0fac1", name: "Rua 13 - Ouro Fino" },
-  { id: "bf844af4-e283-4600-8241-29a5fead8f18", name: "Avenida - Ouro Fino" },
-  { id: "df88109a-0005-41f0-a7cc-feb19540d280", name: "Inconfidentes" },
-]
-
-
-const barbers = [
-  { id: "25aad185-561b-4ec0-a570-a6d35d513868", name: "Bruno Souza" },
-  { id: "f9d29449-bec9-4499-83e8-3ce8b1f4078d", name: "Erick" },
-  { id: "e4541de6-7803-4474-9ed1-1ce6efbf591d", name: "Ryan" },
-  { id: "524995f1-9827-4fba-804f-e965c8425bc2", name: "Carlos" },
-  { id: "b6640820-5082-4a35-bf03-c9bb70ca280d", name: "Julio" },
-  { id: "4684fd88-1307-45a1-918c-cf74879d90c9", name: "Faguinho" },
-  { id: "400ab9f7-9cf1-48be-90e5-282cdcd7f874", name: "Joilton" },
-]
+import { useState, useEffect } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Scissors, User, Lock, MapPin } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
+import { useData } from "@/contexts/DataContext";
+import { toast } from "sonner";
 
 export default function LoginPage() {
-  const [barberId, setBarberId] = useState("")
-  const [password, setPassword] = useState("")
-  const [location, setLocation] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
-  const router = useRouter()
+  const [barberId, setBarberId] = useState("");
+  const [password, setPassword] = useState("");
+  const [location, setLocation] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
+  const { login, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { locations, barbers, isLoading: dataLoading } = useData();
+
+  // Redirecionar se já estiver autenticado
+  useEffect(() => {
+    if (isAuthenticated) {
+      router.push("/dashboard");
+    }
+  }, [isAuthenticated, router]);
 
   const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
+    e.preventDefault();
+    setIsLoading(true);
 
     try {
-      console.log("Tentando fazer login com:", { barberId, password: "***", locationId: location })
-      
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          barberId,
-          password,
-          locationId: location,
-        }),
-      })
+      const success = await login(barberId, password, location);
 
-      console.log("Response status:", response.status)
-      const data = await response.json()
-      console.log("Response data:", data)
-
-      if (!response.ok) {
-        // Mostrar erro de autenticação
-        alert(data.error || "Erro ao fazer login")
-        setIsLoading(false)
-        return
+      if (success) {
+        toast.success("Login realizado com sucesso!");
+        router.push("/dashboard");
+      } else {
+        toast.error("Credenciais inválidas. Tente novamente.");
       }
-
-      // Login bem-sucedido
-      console.log("Login bem-sucedido, salvando dados...")
-      localStorage.setItem("barberId", barberId)
-      localStorage.setItem("barberLocation", location)
-      localStorage.setItem("barberName", data.barber.name)
-      
-      console.log("Redirecionando para dashboard...")
-      
-      // Adicionar um pequeno delay para garantir que o localStorage foi salvo
-      setTimeout(() => {
-        router.push("/dashboard")
-      }, 100)
     } catch (error) {
-      console.error("Erro no login:", error)
-      alert("Erro de conexão. Tente novamente.")
+      console.error("Erro no login:", error);
+      toast.error("Erro de conexão. Tente novamente.");
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
+  };
+
+  // Loading state
+  if (authLoading || dataLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p>Carregando...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -92,7 +82,9 @@ export default function LoginPage() {
           <div className="mx-auto mb-4 w-20 h-20 bg-black rounded-full flex items-center justify-center shadow-lg">
             <Scissors className="w-10 h-10 text-white" />
           </div>
-          <CardTitle className="text-3xl font-bold text-black">Barbearia Faguinho Couto</CardTitle>
+          <CardTitle className="text-3xl font-bold text-black">
+            Barbearia Faguinho Couto
+          </CardTitle>
           <CardDescription className="text-base mt-2 text-gray-600">
             Sistema de Gestão - Faça login para continuar
           </CardDescription>
@@ -100,7 +92,10 @@ export default function LoginPage() {
         <CardContent className="space-y-6">
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="barberId" className="text-sm font-medium text-black">
+              <Label
+                htmlFor="barberId"
+                className="text-sm font-medium text-black"
+              >
                 Barbeiro
               </Label>
               <Select onValueChange={setBarberId} required>
@@ -121,7 +116,10 @@ export default function LoginPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="location" className="text-sm font-medium text-black">
+              <Label
+                htmlFor="location"
+                className="text-sm font-medium text-black"
+              >
                 Localidade
               </Label>
               <Select onValueChange={setLocation} required>
@@ -142,7 +140,10 @@ export default function LoginPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-sm font-medium text-black">
+              <Label
+                htmlFor="password"
+                className="text-sm font-medium text-black"
+              >
                 Senha
               </Label>
               <div className="relative">
@@ -169,10 +170,12 @@ export default function LoginPage() {
           </form>
 
           <div className="text-center pt-4 border-t border-gray-200">
-            <p className="text-xs text-gray-500">Barbearia Faguinho Couto © 2025</p>
+            <p className="text-xs text-gray-500">
+              Barbearia Faguinho Couto © 2025
+            </p>
           </div>
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

@@ -1,7 +1,6 @@
 "use client";
 
-import type React from "react";
-import { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useMemo, memo } from "react";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
@@ -26,86 +25,19 @@ import {
 } from "@/components/ui/card";
 import {
   DollarSign,
-  TrendingUp,
-  TrendingDown,
-  Calendar,
-  Users,
-  Scissors,
-  Clock,
   CheckCircle,
+  Clock,
   XCircle,
-  AlertCircle,
   Filter,
   Download,
   RefreshCw,
+  Users,
+  Scissors,
 } from "lucide-react";
-import { useApi } from "@/hooks/use-api";
-import {
-  locationsApi,
-  barbersApi,
-  type Location,
-  type Barber,
-} from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
+import { useData } from "@/contexts/DataContext";
+import { useCashFlow } from "@/contexts/CashFlowContext";
 import { toast } from "sonner";
-import { useRouter } from "next/navigation";
-
-// Tipos para os dados de caixa
-interface CashFlowStats {
-  totalRevenue: number;
-  pendingRevenue: number;
-  paidRevenue: number;
-  cancelledRevenue: number;
-  totalAppointments: number;
-  completedAppointments: number;
-  pendingAppointments: number;
-  cancelledAppointments: number;
-  noShowAppointments: number;
-  paymentMethods: {
-    pix: number;
-    dinheiro: number;
-    cartao: number;
-    plano: number;
-  };
-  dailyRevenue: Array<{
-    date: string;
-    revenue: number;
-    appointments: number;
-  }>;
-  barberStats: Array<{
-    barberId: string;
-    barberName: string;
-    revenue: number;
-    appointments: number;
-  }>;
-  serviceStats: Array<{
-    serviceId: string;
-    serviceName: string;
-    revenue: number;
-    appointments: number;
-  }>;
-}
-
-interface CashFlowAppointment {
-  id: string;
-  clientName: string;
-  barberName: string;
-  serviceName: string;
-  servicePrice: number;
-  appointmentDate: string;
-  startTime: string;
-  endTime: string;
-  status: string;
-  paymentMethod: string;
-  paymentStatus: string;
-  locationName: string;
-  notes: string;
-  createdAt: string;
-}
-
-interface CashFlowData {
-  stats: CashFlowStats;
-  appointments: CashFlowAppointment[];
-}
 
 // Função para formatar moeda
 const formatCurrency = (value: number) => {
@@ -126,272 +58,8 @@ const formatDateTime = (dateString: string, timeString: string) => {
   return `${date.toLocaleDateString("pt-BR")} às ${timeString}`;
 };
 
-export default function CashFlowPage() {
-  const router = useRouter();
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [dateRange, setDateRange] = useState({
-    startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-      .toISOString()
-      .split("T")[0], // 30 dias atrás
-    endDate: new Date().toISOString().split("T")[0], // hoje
-  });
-  const [locationFilter, setLocationFilter] = useState<string>("");
-  const [barberFilter, setBarberFilter] = useState<string>("");
-  const [statusFilter, setStatusFilter] = useState<string>("");
-
-  // Verificar se o usuário é admin
-  useEffect(() => {
-    const checkAdminStatus = async () => {
-      const barberId = localStorage.getItem("barberId");
-      if (!barberId) {
-        router.push("/");
-        return;
-      }
-
-      try {
-        const response = await fetch(`/api/users?adminBarberId=${barberId}`);
-        if (response.ok) {
-          setIsAdmin(true);
-        } else {
-          router.push("/unauthorized");
-        }
-      } catch (error) {
-        console.error("Erro ao verificar status de admin:", error);
-        router.push("/unauthorized");
-      }
-    };
-
-    checkAdminStatus();
-  }, [router]);
-
-  // Buscar dados de localizações e barbeiros
-  const { data: locations } = useApi<Location[]>(
-    () => locationsApi.getAll(),
-    []
-  );
-
-  const { data: barbers } = useApi<Barber[]>(() => barbersApi.getAll(), []);
-
-  // Buscar dados de caixa
-  const {
-    data: cashFlowData,
-    loading: cashFlowLoading,
-    refetch: refetchCashFlow,
-  } = useApi<CashFlowData>(() => {
-    const params = new URLSearchParams({
-      startDate: dateRange.startDate,
-      endDate: dateRange.endDate,
-    });
-
-    if (locationFilter && locationFilter !== "all")
-      params.append("locationId", locationFilter);
-    if (barberFilter && barberFilter !== "all")
-      params.append("barberId", barberFilter);
-
-    return fetch(`/api/cash-flow?${params.toString()}`).then((res) =>
-      res.json()
-    );
-  }, [dateRange, locationFilter, barberFilter]);
-
-  // Filtrar agendamentos por status
-  const filteredAppointments = useMemo(() => {
-    if (!cashFlowData?.appointments) return [];
-
-    if (!statusFilter || statusFilter === "all")
-      return cashFlowData.appointments;
-
-    return cashFlowData.appointments.filter(
-      (appointment) => appointment.status === statusFilter
-    );
-  }, [cashFlowData?.appointments, statusFilter]);
-
-  // Handlers para filtros
-  const handleDateRangeChange = useCallback(
-    (field: "startDate" | "endDate", value: string) => {
-      setDateRange((prev) => ({ ...prev, [field]: value }));
-    },
-    []
-  );
-
-  const handleLocationFilterChange = useCallback((value: string) => {
-    setLocationFilter(value);
-  }, []);
-
-  const handleBarberFilterChange = useCallback((value: string) => {
-    setBarberFilter(value);
-  }, []);
-
-  const handleStatusFilterChange = useCallback((value: string) => {
-    setStatusFilter(value);
-  }, []);
-
-  const handleRefresh = useCallback(() => {
-    refetchCashFlow();
-    toast.success("Dados atualizados com sucesso!");
-  }, [refetchCashFlow]);
-
-  // Função para exportar dados (placeholder)
-  const handleExport = useCallback(() => {
-    toast.info("Funcionalidade de exportação em desenvolvimento");
-  }, []);
-
-  if (!isAdmin) {
-    return null; // Não renderizar nada se não for admin
-  }
-
-  const stats = cashFlowData?.stats;
-
-  return (
-    <SidebarProvider>
-      <AppSidebar />
-      <SidebarInset>
-        <header className="flex h-20 shrink-0 items-center gap-4 border-b bg-card px-6 shadow-sm">
-          <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="mr-2 h-6" />
-
-          <div className="flex items-center justify-between w-full">
-            {/* Título */}
-            <div className="flex items-center gap-3">
-              <DollarSign className="h-5 w-5 text-primary" />
-              <h1 className="text-xl font-semibold text-foreground">
-                Acompanhamento de Caixa
-              </h1>
-            </div>
-
-            {/* Controles */}
-            <div className="flex items-center gap-3">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleRefresh}
-                disabled={cashFlowLoading}
-                className="h-9 px-4"
-              >
-                <RefreshCw
-                  className={`h-4 w-4 mr-2 ${
-                    cashFlowLoading ? "animate-spin" : ""
-                  }`}
-                />
-                Atualizar
-              </Button>
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleExport}
-                className="h-9 px-4"
-              >
-                <Download className="h-4 w-4 mr-2" />
-                Exportar
-              </Button>
-            </div>
-          </div>
-        </header>
-
-        <div className="flex-1 space-y-6 p-6">
-          {/* Filtros */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Filter className="h-4 w-4" />
-                Filtros
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                {/* Período */}
-                <div className="space-y-2">
-                  <Label htmlFor="startDate">Data Inicial</Label>
-                  <Input
-                    id="startDate"
-                    type="date"
-                    value={dateRange.startDate}
-                    onChange={(e) =>
-                      handleDateRangeChange("startDate", e.target.value)
-                    }
-                    className="h-9"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="endDate">Data Final</Label>
-                  <Input
-                    id="endDate"
-                    type="date"
-                    value={dateRange.endDate}
-                    onChange={(e) =>
-                      handleDateRangeChange("endDate", e.target.value)
-                    }
-                    className="h-9"
-                  />
-                </div>
-
-                {/* Localização */}
-                <div className="space-y-2">
-                  <Label>Localização</Label>
-                  <Select
-                    value={locationFilter}
-                    onValueChange={handleLocationFilterChange}
-                  >
-                    <SelectTrigger className="h-9">
-                      <SelectValue placeholder="Todas as localizações" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todas as localizações</SelectItem>
-                      {locations?.map((location) => (
-                        <SelectItem key={location.id} value={location.id}>
-                          {location.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Barbeiro */}
-                <div className="space-y-2">
-                  <Label>Barbeiro</Label>
-                  <Select
-                    value={barberFilter}
-                    onValueChange={handleBarberFilterChange}
-                  >
-                    <SelectTrigger className="h-9">
-                      <SelectValue placeholder="Todos os barbeiros" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos os barbeiros</SelectItem>
-                      {barbers?.map((barber) => (
-                        <SelectItem key={barber.id} value={barber.id}>
-                          {barber.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Status */}
-                <div className="space-y-2">
-                  <Label>Status</Label>
-                  <Select
-                    value={statusFilter}
-                    onValueChange={handleStatusFilterChange}
-                  >
-                    <SelectTrigger className="h-9">
-                      <SelectValue placeholder="Todos os status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos os status</SelectItem>
-                      <SelectItem value="scheduled">Agendado</SelectItem>
-                      <SelectItem value="completed">Concluído</SelectItem>
-                      <SelectItem value="cancelled">Cancelado</SelectItem>
-                      <SelectItem value="no_show">Não compareceu</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Cards de Resumo */}
+// Componente memoizado para os cards de resumo
+const StatsCards = memo(({ stats }: { stats: any }) => (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {/* Receita Total */}
             <Card>
@@ -465,8 +133,12 @@ export default function CashFlowPage() {
               </CardContent>
             </Card>
           </div>
+));
 
-          {/* Métodos de Pagamento */}
+StatsCards.displayName = "StatsCards";
+
+// Componente memoizado para métodos de pagamento
+const PaymentMethods = memo(({ stats }: { stats: any }) => (
           <Card>
             <CardHeader>
               <CardTitle>Métodos de Pagamento</CardTitle>
@@ -503,8 +175,12 @@ export default function CashFlowPage() {
               </div>
             </CardContent>
           </Card>
+));
 
-          {/* Top Barbeiros */}
+PaymentMethods.displayName = "PaymentMethods";
+
+// Componente memoizado para top barbeiros
+const TopBarbers = memo(({ barberStats }: { barberStats: any[] }) => (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -515,7 +191,7 @@ export default function CashFlowPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {stats?.barberStats.slice(0, 5).map((barber, index) => (
+        {barberStats.slice(0, 5).map((barber, index) => (
                   <div
                     key={barber.barberId}
                     className="flex items-center justify-between p-3 bg-muted rounded-lg"
@@ -546,8 +222,12 @@ export default function CashFlowPage() {
               </div>
             </CardContent>
           </Card>
+));
 
-          {/* Top Serviços */}
+TopBarbers.displayName = "TopBarbers";
+
+// Componente memoizado para top serviços
+const TopServices = memo(({ serviceStats }: { serviceStats: any[] }) => (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -558,7 +238,7 @@ export default function CashFlowPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {stats?.serviceStats.slice(0, 5).map((service, index) => (
+        {serviceStats.slice(0, 5).map((service, index) => (
                   <div
                     key={service.serviceId}
                     className="flex items-center justify-between p-3 bg-muted rounded-lg"
@@ -589,28 +269,38 @@ export default function CashFlowPage() {
               </div>
             </CardContent>
           </Card>
+));
 
-          {/* Lista de Agendamentos */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Agendamentos</CardTitle>
-              <CardDescription>
-                Lista detalhada dos agendamentos no período selecionado
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {cashFlowLoading ? (
+TopServices.displayName = "TopServices";
+
+// Componente memoizado para lista de agendamentos
+const AppointmentsList = memo(({ 
+  appointments, 
+  isLoading 
+}: { 
+  appointments: any[], 
+  isLoading: boolean 
+}) => {
+  if (isLoading) {
+    return (
                 <div className="flex items-center justify-center py-8">
                   <RefreshCw className="h-6 w-6 animate-spin mr-2" />
                   Carregando dados...
                 </div>
-              ) : filteredAppointments.length === 0 ? (
+    );
+  }
+
+  if (appointments.length === 0) {
+    return (
                 <div className="text-center py-8 text-muted-foreground">
                   Nenhum agendamento encontrado para os filtros selecionados.
                 </div>
-              ) : (
+    );
+  }
+
+  return (
                 <div className="space-y-4">
-                  {filteredAppointments.map((appointment) => (
+      {appointments.map((appointment) => (
                     <div
                       key={appointment.id}
                       className="flex items-center justify-between p-4 border rounded-lg"
@@ -678,7 +368,269 @@ export default function CashFlowPage() {
                     </div>
                   ))}
                 </div>
-              )}
+  );
+});
+
+AppointmentsList.displayName = "AppointmentsList";
+
+export default function CashFlowPage() {
+  const { isAdmin, isLoading: authLoading } = useAuth();
+  const { locations, barbers, isLoading: dataLoading } = useData();
+  const {
+    data: cashFlowData,
+    isLoading: cashFlowLoading,
+    error,
+    filters,
+    setFilters,
+    refetch,
+  } = useCashFlow();
+
+  // Memoizar handlers para evitar re-criações
+  const handleRefresh = useMemo(() => () => {
+    refetch();
+    toast.success("Dados atualizados com sucesso!");
+  }, [refetch]);
+
+  const handleExport = useMemo(() => () => {
+    toast.info("Funcionalidade de exportação em desenvolvimento");
+  }, []);
+
+  // Memoizar filtros para evitar re-renderizações desnecessárias
+  const memoizedFilters = useMemo(() => ({
+    startDate: filters.startDate,
+    endDate: filters.endDate,
+    locationId: filters.locationId,
+    barberId: filters.barberId,
+    status: filters.status,
+  }), [filters]);
+
+  // Filtrar agendamentos por status
+  const filteredAppointments = useMemo(() => {
+    if (!cashFlowData?.appointments) return [];
+
+    if (!filters.status || filters.status === "all")
+      return cashFlowData.appointments;
+
+    return cashFlowData.appointments.filter(
+      (appointment) => appointment.status === filters.status
+    );
+  }, [cashFlowData?.appointments, filters.status]);
+
+  // Loading state
+  if (authLoading || dataLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <RefreshCw className="h-8 w-8 animate-spin mr-2" />
+        Carregando...
+      </div>
+    );
+  }
+
+  // Verificar se é admin
+  if (!isAdmin) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <XCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold mb-2">Acesso Negado</h2>
+          <p className="text-muted-foreground">
+            Apenas administradores podem acessar esta página.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <XCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold mb-2">Erro ao Carregar Dados</h2>
+          <p className="text-muted-foreground mb-4">{error}</p>
+          <Button onClick={handleRefresh}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Tentar Novamente
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  const stats = cashFlowData?.stats;
+
+  return (
+    <SidebarProvider>
+      <AppSidebar />
+      <SidebarInset>
+        <header className="flex h-20 shrink-0 items-center gap-4 border-b bg-card px-6 shadow-sm">
+          <SidebarTrigger className="-ml-1" />
+          <Separator orientation="vertical" className="mr-2 h-6" />
+
+          <div className="flex items-center justify-between w-full">
+            {/* Título */}
+            <div className="flex items-center gap-3">
+              <DollarSign className="h-5 w-5 text-primary" />
+              <h1 className="text-xl font-semibold text-foreground">
+                Acompanhamento de Caixa
+              </h1>
+            </div>
+
+            {/* Controles */}
+            <div className="flex items-center gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRefresh}
+                disabled={cashFlowLoading}
+                className="h-9 px-4"
+              >
+                <RefreshCw
+                  className={`h-4 w-4 mr-2 ${
+                    cashFlowLoading ? "animate-spin" : ""
+                  }`}
+                />
+                Atualizar
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExport}
+                className="h-9 px-4"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Exportar
+              </Button>
+            </div>
+          </div>
+        </header>
+
+        <div className="flex-1 space-y-6 p-6">
+          {/* Filtros */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Filter className="h-4 w-4" />
+                Filtros
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                {/* Período */}
+                <div className="space-y-2">
+                  <Label htmlFor="startDate">Data Inicial</Label>
+                  <Input
+                    id="startDate"
+                    type="date"
+                    value={memoizedFilters.startDate}
+                    onChange={(e) => setFilters({ startDate: e.target.value })}
+                    className="h-9"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="endDate">Data Final</Label>
+                  <Input
+                    id="endDate"
+                    type="date"
+                    value={memoizedFilters.endDate}
+                    onChange={(e) => setFilters({ endDate: e.target.value })}
+                    className="h-9"
+                  />
+                </div>
+
+                {/* Localização */}
+                <div className="space-y-2">
+                  <Label>Localização</Label>
+                  <Select
+                    value={memoizedFilters.locationId}
+                    onValueChange={(value) => setFilters({ locationId: value })}
+                  >
+                    <SelectTrigger className="h-9">
+                      <SelectValue placeholder="Todas as localizações" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas as localizações</SelectItem>
+                      {locations?.map((location) => (
+                        <SelectItem key={location.id} value={location.id}>
+                          {location.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Barbeiro */}
+                <div className="space-y-2">
+                  <Label>Barbeiro</Label>
+                  <Select
+                    value={memoizedFilters.barberId}
+                    onValueChange={(value) => setFilters({ barberId: value })}
+                  >
+                    <SelectTrigger className="h-9">
+                      <SelectValue placeholder="Todos os barbeiros" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os barbeiros</SelectItem>
+                      {barbers?.map((barber) => (
+                        <SelectItem key={barber.id} value={barber.id}>
+                          {barber.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Status */}
+                <div className="space-y-2">
+                  <Label>Status</Label>
+                  <Select
+                    value={memoizedFilters.status}
+                    onValueChange={(value) => setFilters({ status: value })}
+                  >
+                    <SelectTrigger className="h-9">
+                      <SelectValue placeholder="Todos os status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os status</SelectItem>
+                      <SelectItem value="scheduled">Agendado</SelectItem>
+                      <SelectItem value="completed">Concluído</SelectItem>
+                      <SelectItem value="cancelled">Cancelado</SelectItem>
+                      <SelectItem value="no_show">Não compareceu</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Cards de Resumo */}
+          <StatsCards stats={stats} />
+
+          {/* Métodos de Pagamento */}
+          <PaymentMethods stats={stats} />
+
+          {/* Top Barbeiros */}
+          <TopBarbers barberStats={stats?.barberStats || []} />
+
+          {/* Top Serviços */}
+          <TopServices serviceStats={stats?.serviceStats || []} />
+
+          {/* Lista de Agendamentos */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Agendamentos</CardTitle>
+              <CardDescription>
+                Lista detalhada dos agendamentos no período selecionado
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <AppointmentsList 
+                appointments={filteredAppointments} 
+                isLoading={cashFlowLoading} 
+              />
             </CardContent>
           </Card>
         </div>
